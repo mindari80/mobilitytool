@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DLT GPS Log Viewer</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <style>
+    :root {
+      --bg: #0b1220;
+      --panel: rgba(15, 23, 42, 0.92);
+      --border: rgba(148, 163, 184, 0.16);
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --gps: #2563eb;
+      --drgps: #64748b;
+      --mmgps: #06b6d4;
+      --mmmatch: #22c55e;
+      --route: #0f766e;
+      --tts: #f97316;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Segoe UI", "Noto Sans KR", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+    }
+
+    /* ---- Sidebar ---- */
+    #sidebar {
+      width: 320px;
+      min-width: 280px;
+      max-width: 360px;
+      height: 100vh;
+      overflow-y: auto;
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      backdrop-filter: blur(14px);
+      flex-shrink: 0;
+    }
+
+    #sidebar h1 {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: -0.3px;
+    }
+
+    #sidebar p.subtitle {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    /* ---- Drop zone ---- */
+    #drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 12px;
+      padding: 20px 12px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      background: rgba(15, 23, 42, 0.5);
+    }
+    #drop-zone.drag-over {
+      border-color: var(--accent);
+      background: rgba(56, 189, 248, 0.07);
+    }
+    #drop-zone p { font-size: 13px; color: var(--muted); line-height: 1.6; }
+    #browse-btn {
+      margin-top: 8px;
+      padding: 7px 18px;
+      background: var(--accent);
+      color: #0b1220;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    #browse-btn:hover { opacity: 0.85; }
+
+    /* ---- Progress ---- */
+    #progress-section { display: flex; flex-direction: column; gap: 6px; }
+    .progress-track {
+      width: 100%;
+      height: 6px;
+      background: rgba(148, 163, 184, 0.15);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    #progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #38bdf8, #818cf8);
+      border-radius: 99px;
+      transition: width 0.15s ease;
+    }
+    #progress-label { font-size: 11px; color: var(--muted); word-break: break-all; }
+
+    /* ---- Stats ---- */
+    #stats-section { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .stat-card {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+    .stat-card.wide { grid-column: span 2; }
+    .stat-label { font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+    .stat-value { font-size: 20px; font-weight: 700; }
+    .stat-value.small { font-size: 12px; white-space: pre-line; }
+
+    /* ---- Layer panel ---- */
+    #layer-panel {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+    #layer-panel h2 { font-size: 13px; font-weight: 600; margin-bottom: 10px; color: var(--text); }
+    .layer-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .layer-row:last-child { margin-bottom: 0; }
+    .layer-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* ---- Map ---- */
+    #map-wrap { flex: 1; position: relative; }
+    #map { width: 100%; height: 100vh; }
+
+    /* ---- Popup styles ---- */
+    .leaflet-popup-content { width: 500px !important; max-width: 500px; }
+    .route-popup {
+      max-height: 420px;
+      overflow-y: auto;
+      font-size: 12px;
+      line-height: 1.5;
+      padding-right: 4px;
+    }
+    .route-popup div { margin-bottom: 2px; }
+    .route-banner {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 10px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: rgba(15, 118, 110, 0.14);
+      border: 1px solid rgba(45, 212, 191, 0.22);
+    }
+    .route-popup pre {
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 10px;
+      background: rgba(0,0,0,0.06);
+      padding: 6px;
+      border-radius: 6px;
+    }
+    details summary { cursor: pointer; font-weight: 600; margin-top: 6px; }
+
+    @media (max-width: 800px) {
+      body { flex-direction: column; overflow: auto; }
+      #sidebar { width: 100%; max-width: 100%; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+      #map-wrap { flex: none; height: 60vh; }
+      #map { height: 60vh; }
+    }
+  </style>
+</head>
+<body>
+
+<aside id="sidebar">
+  <div>
+    <h1>DLT GPS Log Viewer</h1>
+    <p class="subtitle">.dlt 파일을 선택하면 브라우저에서 직접 분석해 TMAP 지도에 표시합니다.</p>
+  </div>
+
+  <!-- File drop zone -->
+  <div id="drop-zone">
+    <p>.dlt 파일을 여기에 드래그 &amp; 드롭하거나<br>아래 버튼으로 선택하세요.</p>
+    <button id="browse-btn">파일 선택</button>
+    <input id="file-input" type="file" accept=".dlt" multiple hidden>
+  </div>
+
+  <!-- Progress -->
+  <div id="progress-section" hidden>
+    <div class="progress-track">
+      <div id="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
+    </div>
+    <div id="progress-label">준비 중...</div>
+  </div>
+
+  <!-- Stats -->
+  <div id="stats-section" hidden>
+    <div class="stat-card wide">
+      <div class="stat-label">총 위치 포인트</div>
+      <div class="stat-value" id="stat-points">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label" style="color:#2563eb">GPS</div>
+      <div class="stat-value" id="stat-gps">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label" style="color:#64748b">DR_GPS</div>
+      <div class="stat-value" id="stat-drgps">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label" style="color:#06b6d4">MM GPS Pos</div>
+      <div class="stat-value" id="stat-mmgps">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label" style="color:#22c55e">MM Match Pos</div>
+      <div class="stat-value" id="stat-mmmatch">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label" style="color:#0f766e">경로 요청</div>
+      <div class="stat-value" id="stat-route">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label" style="color:#f97316">TTS 안내</div>
+      <div class="stat-value" id="stat-tts">—</div>
+    </div>
+    <div class="stat-card wide">
+      <div class="stat-label">시간 범위</div>
+      <div class="stat-value small" id="stat-timerange">—</div>
+    </div>
+  </div>
+
+  <!-- Layer toggle -->
+  <div id="layer-panel" hidden>
+    <h2>레이어 토글</h2>
+    <label class="layer-row">
+      <input type="checkbox" data-layer="gps" checked>
+      <span class="layer-dot" style="background:var(--gps)"></span>GPS
+    </label>
+    <label class="layer-row">
+      <input type="checkbox" data-layer="drGps" checked>
+      <span class="layer-dot" style="background:var(--drgps)"></span>DR_GPS
+    </label>
+    <label class="layer-row">
+      <input type="checkbox" data-layer="mmGps" checked>
+      <span class="layer-dot" style="background:var(--mmgps)"></span>MM GPS Pos
+    </label>
+    <label class="layer-row">
+      <input type="checkbox" data-layer="mmMatch" checked>
+      <span class="layer-dot" style="background:var(--mmmatch)"></span>MM Match Pos
+    </label>
+    <label class="layer-row">
+      <input type="checkbox" data-layer="routeRequest" checked>
+      <span class="layer-dot" style="background:var(--route)"></span>경로 요청
+    </label>
+    <label class="layer-row">
+      <input type="checkbox" data-layer="tts" checked>
+      <span class="layer-dot" style="background:var(--tts)"></span>TTS 안내
+    </label>
+  </div>
+</aside>
+
+<div id="map-wrap">
+  <div id="map"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
