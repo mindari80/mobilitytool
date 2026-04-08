@@ -1,7 +1,9 @@
 /**
  * Main application entry point.
- * Handles directory selection, recursive DLT file discovery,
- * step-by-step progress display, and orchestrates parsing → rendering.
+ * Uses File System Access API (showDirectoryPicker) to read a local directory
+ * without any file upload — files are read directly from the local filesystem.
+ *
+ * Fallback: drag & drop a folder (FileSystemEntry API)
  */
 
 'use strict';
@@ -12,8 +14,8 @@ import { initMap, renderLogs, toggleLayer } from './map-viewer.js';
 // ---- DOM refs ------------------------------------------------------------ //
 
 const dropZone       = document.getElementById('drop-zone');
-const fileInput      = document.getElementById('file-input');
 const browseBtn      = document.getElementById('browse-btn');
+const browserWarn    = document.getElementById('browser-warn');
 const progressSection= document.getElementById('progress-section');
 const progressBar    = document.getElementById('progress-bar');
 const progressLabel  = document.getElementById('progress-label');
@@ -30,6 +32,13 @@ const statTts        = document.getElementById('stat-tts');
 const statTimeRange  = document.getElementById('stat-timerange');
 const layerPanel     = document.getElementById('layer-panel');
 
+// ---- Browser compatibility check ----------------------------------------- //
+
+const hasDirectoryPicker = typeof window.showDirectoryPicker === 'function';
+if (!hasDirectoryPicker) {
+  browserWarn.style.display = 'block';
+}
+
 // ---- Layer toggle wiring ------------------------------------------------- //
 
 document.querySelectorAll('[data-layer]').forEach(cb => {
@@ -38,17 +47,36 @@ document.querySelectorAll('[data-layer]').forEach(cb => {
   });
 });
 
-// ---- File drop / browse -------------------------------------------------- //
+// ---- Browse button: File System Access API ------------------------------- //
 
-browseBtn.addEventListener('click', () => fileInput.click());
+browseBtn.addEventListener('click', async () => {
+  if (!hasDirectoryPicker) {
+    alert('이 기능은 Chrome 또는 Edge 브라우저에서만 지원됩니다.');
+    return;
+  }
 
-// webkitdirectory input: all files inside the selected folder arrive at once
-fileInput.addEventListener('change', () => {
-  const dltFiles = [...fileInput.files].filter(f => f.name.endsWith('.dlt'));
-  if (dltFiles.length) handleFiles(dltFiles);
-  else alert('선택한 폴더에서 .dlt 파일을 찾을 수 없습니다.');
-  fileInput.value = '';
+  let dirHandle;
+  try {
+    dirHandle = await window.showDirectoryPicker({ mode: 'read' });
+  } catch (e) {
+    if (e.name !== 'AbortError') console.error(e);
+    return; // 사용자가 취소했거나 오류
+  }
+
+  startProgress();
+  setProgress(0, '디렉토리 스캔 중...', '하위 디렉토리를 탐색하고 있습니다.');
+
+  const { files, names } = await scanDirectory(dirHandle, onScanProgress);
+
+  if (!files.length) {
+    setProgress(0, '파일 없음', '선택한 폴더에서 .dlt 파일을 찾을 수 없습니다.');
+    return;
+  }
+
+  await analyzeFiles(files, names);
 });
+
+// ---- Drag & drop (folder drop via FileSystemEntry API) ------------------- //
 
 dropZone.addEventListener('dragover', e => {
   e.preventDefault();
@@ -59,23 +87,58 @@ dropZone.addEventListener('drop', async e => {
   e.preventDefault();
   dropZone.classList.remove('drag-over');
 
-  setProgress(0, '폴더 스캔 중...', 'DLT 파일을 탐색하고 있습니다.');
-  progressSection.hidden = false;
-  statsSection.hidden = true;
-  layerPanel.hidden = true;
-  progressFiles.innerHTML = '';
+  startProgress();
+  setProgress(0, '디렉토리 스캔 중...', '드롭된 항목에서 DLT 파일을 탐색합니다.');
 
-  const files = await getFilesFromDataTransfer(e.dataTransfer);
-  if (files.length) handleFiles(files);
-  else {
+  const { files, names } = await getFilesFromDataTransfer(e.dataTransfer);
+
+  if (!files.length) {
     setProgress(0, '파일 없음', '드롭한 항목에서 .dlt 파일을 찾을 수 없습니다.');
+    return;
   }
+
+  await analyzeFiles(files, names);
 });
 
-// ---- Directory traversal via DataTransfer API ---------------------------- //
+// ---- Directory scan: File System Access API ------------------------------ //
+
+/**
+ * Recursively scan a FileSystemDirectoryHandle for .dlt files.
+ * @param {FileSystemDirectoryHandle} dirHandle
+ * @param {Function} onFound  callback(count, latestName) called each time a file is found
+ * @returns {{ files: File[], names: string[] }}
+ */
+async function scanDirectory(dirHandle, onFound = null) {
+  const files = [];
+  const names = [];
+
+  async function traverse(handle, prefix) {
+    for await (const [entryName, entryHandle] of handle.entries()) {
+      const path = prefix ? `${prefix}/${entryName}` : entryName;
+      if (entryHandle.kind === 'file' && entryName.toLowerCase().endsWith('.dlt')) {
+        const file = await entryHandle.getFile();
+        files.push(file);
+        names.push(path);
+        if (onFound) onFound(files.length, path);
+      } else if (entryHandle.kind === 'directory') {
+        await traverse(entryHandle, path);
+      }
+    }
+  }
+
+  await traverse(dirHandle, '');
+  return { files, names };
+}
+
+function onScanProgress(count, latestName) {
+  setProgress(0, '디렉토리 스캔 중...', `${count}개 발견: ${latestName}`);
+}
+
+// ---- Directory traversal: Drag & Drop (FileSystemEntry API) -------------- //
 
 async function getFilesFromDataTransfer(dataTransfer) {
   const files = [];
+  const names = [];
 
   if (dataTransfer.items && dataTransfer.items.length > 0) {
     const entries = [];
@@ -87,24 +150,30 @@ async function getFilesFromDataTransfer(dataTransfer) {
     }
     if (entries.length > 0) {
       for (const entry of entries) {
-        await collectFromEntry(entry, files);
+        await collectFromEntry(entry, files, names, '');
       }
-      return files;
+      return { files, names };
     }
   }
 
-  // Fallback: plain File list
-  return [...dataTransfer.files].filter(f => f.name.endsWith('.dlt'));
+  // Fallback: plain file list
+  for (const f of dataTransfer.files) {
+    if (f.name.toLowerCase().endsWith('.dlt')) {
+      files.push(f);
+      names.push(f.name);
+    }
+  }
+  return { files, names };
 }
 
-/**
- * Recursively collect .dlt files from a FileSystemEntry.
- */
-async function collectFromEntry(entry, files) {
+async function collectFromEntry(entry, files, names, prefix) {
+  const path = prefix ? `${prefix}/${entry.name}` : entry.name;
   if (entry.isFile) {
-    if (entry.name.endsWith('.dlt')) {
+    if (entry.name.toLowerCase().endsWith('.dlt')) {
       const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
       files.push(file);
+      names.push(path);
+      setProgress(0, '디렉토리 스캔 중...', `${files.length}개 발견: ${path}`);
     }
   } else if (entry.isDirectory) {
     const reader = entry.createReader();
@@ -112,13 +181,20 @@ async function collectFromEntry(entry, files) {
     do {
       batch = await new Promise((resolve, reject) => reader.readEntries(resolve, reject));
       for (const child of batch) {
-        await collectFromEntry(child, files);
+        await collectFromEntry(child, files, names, path);
       }
     } while (batch.length > 0);
   }
 }
 
 // ---- Progress helpers ---------------------------------------------------- //
+
+function startProgress() {
+  progressSection.hidden = false;
+  statsSection.hidden = true;
+  layerPanel.hidden = true;
+  progressFiles.innerHTML = '';
+}
 
 function setProgress(pct, label, detail = '') {
   progressBar.style.width = `${pct}%`;
@@ -129,82 +205,58 @@ function setProgress(pct, label, detail = '') {
 
 /**
  * Render the file list panel.
- * @param {string[]} names      display names (relative paths)
- * @param {number}   currentIdx index of the file currently being parsed (-1 = none)
- * @param {number}   doneCount  number of files already finished
+ * @param {string[]} names
+ * @param {number}   currentIdx  index of file currently being parsed
+ * @param {number}   doneCount   number of finished files
  */
 function renderFileList(names, currentIdx, doneCount) {
   progressFiles.innerHTML = '';
   names.forEach((name, i) => {
     const row = document.createElement('div');
     let cls, icon;
-    if (i < doneCount) {
-      cls = 'done';   icon = '✓';
-    } else if (i === currentIdx) {
-      cls = 'active'; icon = '▶';
-    } else {
-      cls = 'pending'; icon = '·';
-    }
+    if (i < doneCount)        { cls = 'done';    icon = '✓'; }
+    else if (i === currentIdx) { cls = 'active';  icon = '▶'; }
+    else                       { cls = 'pending'; icon = '·'; }
     row.className = `pf-row ${cls}`;
     row.innerHTML = `<span class="pf-icon">${icon}</span><span class="pf-name" title="${name}">${name}</span>`;
     progressFiles.appendChild(row);
-
-    // Auto-scroll to keep active item visible
     if (i === currentIdx) {
       requestAnimationFrame(() => row.scrollIntoView({ block: 'nearest' }));
     }
   });
 }
 
-// ---- Main flow ----------------------------------------------------------- //
+// ---- Analysis ------------------------------------------------------------ //
 
-async function handleFiles(dltFiles) {
-  if (!dltFiles.length) return;
-
-  progressSection.hidden = false;
-  statsSection.hidden = true;
-  layerPanel.hidden = true;
-  progressFiles.innerHTML = '';
-
-  // --- Step 1: 스캔 완료 표시 ---
+async function analyzeFiles(dltFiles, displayNames) {
+  // Step 1 완료 — 스캔 결과 표시
   setProgress(0, `[1단계] 스캔 완료`, `DLT 파일 ${dltFiles.length}개 발견 — 분석을 시작합니다.`);
-
-  // Build display names (use webkitRelativePath when available, else file.name)
-  const displayNames = dltFiles.map(f =>
-    (f.webkitRelativePath && f.webkitRelativePath.length > 0)
-      ? f.webkitRelativePath
-      : f.name
-  );
-
   renderFileList(displayNames, 0, 0);
 
-  // --- Step 2: 분석 ---
-  let lastProgressUpdate = 0;
-  let currentFileIdx = 0;
-  let currentFilePct = 0;
+  // Step 2 — 파일별 분석
+  let lastUIUpdate = 0;
 
   function onProgress(filePath, fileIndex, fileCount, overallBytes, totalBytes, fileBytes, fileTotal) {
     const now = Date.now();
-    if (now - lastProgressUpdate < 80) return;   // throttle to ~12 fps
-    lastProgressUpdate = now;
+    if (now - lastUIUpdate < 80) return;
+    lastUIUpdate = now;
 
-    currentFileIdx = fileIndex - 1;              // 0-based index of current file
-    currentFilePct = fileTotal > 0 ? (fileBytes / fileTotal) * 100 : 0;
-    const overallPct = totalBytes > 0 ? (overallBytes / totalBytes) * 100 : 0;
+    const currentIdx  = fileIndex - 1;
+    const overallPct  = totalBytes > 0 ? (overallBytes / totalBytes) * 100 : 0;
+    const filePct     = fileTotal  > 0 ? (fileBytes    / fileTotal)  * 100 : 0;
 
     setProgress(
       overallPct,
       `[2단계] 파일 분석 중 — ${overallPct.toFixed(1)}%`,
-      `[${fileIndex}/${fileCount}] ${displayNames[currentFileIdx] ?? filePath}  (${currentFilePct.toFixed(1)}%)`
+      `[${fileIndex}/${fileCount}] ${displayNames[currentIdx] ?? filePath}  (${filePct.toFixed(1)}%)`
     );
-
-    renderFileList(displayNames, currentFileIdx, fileIndex - 1);
+    renderFileList(displayNames, currentIdx, fileIndex - 1);
   }
 
   try {
     const result = await extractLogs(dltFiles, onProgress);
 
-    // --- Step 3: 완료 ---
+    // Step 3 — 완료
     setProgress(100, `[3단계] 분석 완료`, `총 ${dltFiles.length}개 파일 처리 완료`);
     renderFileList(displayNames, -1, dltFiles.length);
 
@@ -249,7 +301,6 @@ function displayResults({ locationLogs, mmLogs, routeRequests, ttsLogs }) {
   statsSection.hidden = false;
   layerPanel.hidden   = false;
 
-  // Map center
   const firstLoc = [...locationLogs, ...mmLogs, ...routeRequests, ...ttsLogs]
     .find(p => (p.lat ?? p.requestLat) != null);
   const center = firstLoc
