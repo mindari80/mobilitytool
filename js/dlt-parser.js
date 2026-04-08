@@ -7,6 +7,7 @@
 
 const DLT_MARKER = new Uint8Array([0x44, 0x4C, 0x54, 0x01]); // 'DLT\x01'
 const CHUNK_SIZE = 4 * 1024 * 1024; // 4 MB
+const _utf8 = new TextDecoder('utf-8', { fatal: false });
 
 const WALLCLOCK_RE = /(\d{4})[/\-](\d{2})[/\-](\d{2}) (\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6}))?/;
 const EPOCH_TIME_RE = /\btime:\s*(\d{10,13})\b/;
@@ -91,44 +92,23 @@ function extractRelativeTime(recordBytes) {
 }
 
 /**
- * Remove null bytes from a Uint8Array and decode as UTF-8.
+ * Decode a DLT record's bytes to a string, stripping null bytes.
  */
 function decodeRecord(recordBytes) {
-  // Filter out 0x00 bytes
-  let count = 0;
-  for (let i = 0; i < recordBytes.length; i++) {
-    if (recordBytes[i] !== 0) count++;
-  }
-  const clean = new Uint8Array(count);
-  let j = 0;
-  for (let i = 0; i < recordBytes.length; i++) {
-    if (recordBytes[i] !== 0) clean[j++] = recordBytes[i];
-  }
-  return new TextDecoder('utf-8', { fatal: false }).decode(clean);
+  return _utf8.decode(recordBytes).replace(/\0/g, '');
 }
 
 /**
  * Quick byte-level check: is this record likely interesting?
  * Avoids full decode for records we don't care about.
+ * All required record types (#RpLog, #onLocationChanged, [MM_RESULT], requestTTS)
+ * carry their marker prefix in every DLT record — no fallback scan needed.
  */
 function isInterestingRecord(recordBytes, interestingMarkers) {
   if (!interestingMarkers || interestingMarkers.length === 0) return true;
-
   for (const marker of interestingMarkers) {
     if (bytesContain(recordBytes, marker)) return true;
   }
-
-  // JSON-ish fragments (route continuation)
-  let hasOpen = false, hasClose = false, quoteCount = 0, hasColon = false;
-  for (let i = 0; i < recordBytes.length; i++) {
-    const b = recordBytes[i];
-    if (b === 0x7B) hasOpen = true;  // {
-    if (b === 0x7D) hasClose = true; // }
-    if (b === 0x22) quoteCount++;    // "
-    if (b === 0x3A) hasColon = true; // :
-  }
-  if (hasOpen && hasClose && quoteCount >= 2 && hasColon) return true;
-
   return false;
 }
 
@@ -198,7 +178,9 @@ export async function* iterateDltRecords(file, progressCallback = null, interest
 
     if (wallclock !== null && relativeTime !== null && offsetSamples.length < 512) {
       offsetSamples.push(wallclock.getTime() / 1000 - relativeTime);
-      relativeOffset = medianOf(offsetSamples);
+      // Recompute median only at geometric steps (1,2,4,8,...) to avoid O(n²)
+      const n = offsetSamples.length;
+      if (n === 1 || (n & (n - 1)) === 0) relativeOffset = medianOf(offsetSamples);
     }
 
     let timestamp = wallclock;

@@ -29,28 +29,25 @@ function field(label, value) {
   return `<div><b>${esc(label)}:</b> ${esc(text)}</div>`;
 }
 
-function sessionId(msg) {
-  if (!msg) return null;
-  const m = /sessionId\s*:\s*([A-Za-z0-9_-]+)/i.exec(String(msg));
-  return m ? m[1] : null;
-}
-
 function routePopupHtml(rr) {
   const displayPayload = rr.payload ? preparePayloadForDisplayExport(rr.payload) : null;
   const payloadPretty = displayPayload ? JSON.stringify(displayPayload, null, 2) : 'N/A';
-  const respMsg = rr.responseMessage ? ` (${rr.responseMessage})` : '';
-  const sid = sessionId(rr.responseMessage);
   const statusColor = rr.responseStatus === 'SUCCESS' ? '#5eead4' :
     rr.responseStatus === 'FAILED' ? '#f87171' : '#94a3b8';
+  const respDetail = [
+    rr.responseTimeMs != null ? `${rr.responseTimeMs}ms` : null,
+    rr.responseSize   != null ? `size: ${rr.responseSize}` : null,
+  ].filter(Boolean).join(', ');
 
   return `
     <div class="route-popup">
       <div class="route-banner">
+        <div><b>Route ID</b><br><span style="font-size:15px;font-weight:700;color:#a78bfa">${esc(rr.rpLabel || 'N/A')}</span></div>
         <div><b>Response</b><br><span style="font-size:17px;font-weight:700;color:${statusColor}">${esc(rr.responseStatus || 'UNKNOWN')}</span></div>
-        <div><b>Session ID</b><br><span style="font-size:12px;font-weight:700;word-break:break-all">${esc(sid || 'N/A')}</span></div>
+        <div><b>Session ID</b><br><span style="font-size:12px;font-weight:700;word-break:break-all">${esc(rr.sessionId || 'N/A')}</span></div>
       </div>
       ${field('Log File', rr.filePath)}
-      ${field('Response', `${rr.responseStatus || 'UNKNOWN'}${respMsg}`)}
+      ${field('Response', respDetail ? `${rr.responseStatus || 'UNKNOWN'} (${respDetail})` : rr.responseStatus || 'UNKNOWN')}
       ${field('Endpoint', rr.endpoint)}
       ${field('ReqTime', rr.reqTime)}
       ${field('Departure', rr.departName)}

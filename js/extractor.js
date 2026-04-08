@@ -29,17 +29,12 @@ const MM_SUPPORT_DR_RE = /\[MM\]\[\d+\]:\[MM_RESULT\]\s*SupportDR\s*=\s*([^\x00\
 const MM_SCORE_RE = /\[MM\]\[\d+\]:\[MM_RESULT\]\s*Score\s*=\s*([0-9.\-]+),\s*NumOfMatchesInDR\s*(\d+),\s*isOpenSkyDRMode\s*(\d+)/;
 const MM_DIST_RE = /\[MM\]\[\d+\]:\[MM_RESULT\]\s*Dist=\s*([0-9.\-]+)\s*\/\s*vIndex\s*=\s*([0-9.\-]+)\s*\/\s*fB\s*=\s*([0-9.\-]+)/;
 
-const ROUTE_ENDPOINT_RE_SRC = '(https://[^\\s\\x00]+/(?:rsd/(?:ev/)?route(?:/[^\\s\\x00]+)?|route(?:/[^\\s\\x00]+)?))';
-const ROUTE_POST_RE = new RegExp('okhttp\\.OkHttpClient\\[\\d+\\]:--> POST ' + ROUTE_ENDPOINT_RE_SRC);
-const ROUTE_RESP_RE = new RegExp('okhttp\\.OkHttpClient\\[\\d+\\]:<-- (\\d{3}) ' + ROUTE_ENDPOINT_RE_SRC);
-const ROUTE_RESP_FAILED_RE = /okhttp\.OkHttpClient\[\d+\]:<-- HTTP FAILED: (.+)/;
-const ROUTE_REQ_LOG_RE = /#RpLog\[\d+\]:\[[^\]]+\]\s+REQ:\s+(\{.*)/;
-const ROUTE_SUCCESS_RE = /okhttpclient\[\d+\]:(EV route success.*)/i;
-const ROUTE_FAILED_RE = /okhttpclient\[\d+\]:(EV route fail(?:ed)?.*)/i;
-const ROUTE_REQUEST_DATA_RE = /RouteRequestData\(departure=RoutePoiData\(position=Wgs84\(latitude=([0-9.\-]+), longitude=([0-9.\-]+)\).*?name=([^,]+).*?destination=RoutePoiData\(position=Wgs84\(latitude=([0-9.\-]+), longitude=([0-9.\-]+)\).*?name=([^,]+)/;
+const RPLOG_POST_RE  = /#RpLog\[(\d+)\]:\[([^\]]+)\] --> POST (\S+)/;
+const RPLOG_REQ_RE   = /#RpLog\[(\d+)\]:\[([^\]]+)\] REQ: (\{.*)/;
+const RPLOG_RESP_RE  = /#RpLog\[(\d+)\]:\[([^\]]+)\] <-- (\d+) \((\d+)ms\) SessionID: (\S+)/;
+const RPLOG_RES_RE   = /#RpLog\[(\d+)\]:\[([^\]]+)\] RES: \[(\d+) ([^\]]+)\] \(size: ([^)]+)\)/;
 const TTS_STATUS_RE = /TmapAutoExternalVoicePlayer:requestTTS\[(\d+)\]:requestTTS status : ([^\x00\r\n]+)/;
 const TTS_SCRIPT_RE = /TmapAutoExternalVoicePlayer:requestTTS\[(\d+)\]:requestTTS script : ([^\x00\r\n]+)/;
-const OKHTTP_MSG_RE = /okhttp\.OkHttpClient\[\d+\]:(.*)/;
 
 const GPS_INTERESTING_STRINGS = [
   '#onLocationChanged',
@@ -48,20 +43,14 @@ const GPS_INTERESTING_STRINGS = [
 
 const ROUTE_TTS_INTERESTING_STRINGS = [
   '#onLocationChanged',   // needed for recentLocation (route anchor)
-  'RouteRequestData(',
   '#RpLog[',
-  'okhttp.OkHttpClient',
-  'okhttpclient[',
   'requestTTS',
 ];
 
 const ALL_INTERESTING_STRINGS = [
   '#onLocationChanged',
   '[MM_RESULT]',
-  'RouteRequestData(',
   '#RpLog[',
-  'okhttp.OkHttpClient',
-  'okhttpclient[',
   'requestTTS',
 ];
 
@@ -126,30 +115,11 @@ function extractFirstJsonObject(text) {
   return null;
 }
 
-function extractOkhttpMessage(line) {
-  const m = OKHTTP_MSG_RE.exec(line);
+// Parse "RP-218-Traffic_MinTime" → { rpId: 218, rpOption: "Traffic_MinTime" }
+function parseRpLabel(label) {
+  const m = /^RP-(\d+)-(.+)$/.exec(label);
   if (!m) return null;
-  return m[1].split('\x00')[0];
-}
-
-function extractDltContinuationChunk(line) {
-  const okhttp = extractOkhttpMessage(line);
-  if (okhttp != null) return okhttp;
-
-  const prefix = line.split('\x00DLT')[0];
-  const segments = prefix.split('\x00').filter(s => s.length > 0);
-  if (!segments.length) return null;
-
-  const candidate = segments[segments.length - 1];
-  let printable = 0;
-  for (const c of candidate) {
-    const code = c.charCodeAt(0);
-    if (c === '\n' || c === '\r' || c === '\t' || (code >= 32 && code <= 126) || code >= 160) {
-      printable++;
-    }
-  }
-  if (printable / Math.max(candidate.length, 1) < 0.6) return null;
-  return candidate;
+  return { rpId: parseInt(m[1], 10), rpOption: m[2] };
 }
 
 // ---- Partial route payload extraction ------------------------------------ //
@@ -244,7 +214,18 @@ function extractPartialRoutePayload(text) {
   if (socketM) payload.socketType = [...socketM[1].matchAll(/"([^"]+)"/g)].map(m => m[1]);
 
   const waypointM = /"wayPoints":\[(.*?)\]/.exec(text);
-  if (waypointM) payload.wayPoints = [...waypointM[1].matchAll(/\{/g)].map(() => ({}));
+  if (waypointM) {
+    payload.wayPoints = [...waypointM[1].matchAll(/\{[^}]+\}/g)].map(wm => {
+      const wp = {};
+      const xM = /"x":(\d+)/.exec(wm[0]);
+      const yM = /"y":(\d+)/.exec(wm[0]);
+      const nameM = /"wayPointName":"([^"]*)"/.exec(wm[0]);
+      if (xM) wp.xPos = parseInt(xM[1], 10);
+      if (yM) wp.yPos = parseInt(yM[1], 10);
+      if (nameM) wp.name = nameM[1];
+      return wp;
+    });
+  }
 
   return payload;
 }
@@ -299,11 +280,11 @@ function normalizeWaypoints(payload) {
   return (payload.wayPoints || [])
     .filter(item => item && typeof item === 'object')
     .map((item, index) => ({
-      name: item.name || item.poiName || `Waypoint ${index + 1}`,
+      name: item.name || item.poiName || item.wayPointName || `Waypoint ${index + 1}`,
       lat: (item.position || {}).latitude ?? null,
       lon: (item.position || {}).longitude ?? null,
-      x: item.xPos ?? item.xpos ?? item.poiXPos ?? null,
-      y: item.yPos ?? item.ypos ?? item.poiYPos ?? null,
+      x: item.xPos ?? item.xpos ?? item.poiXPos ?? item.x ?? null,
+      y: item.yPos ?? item.ypos ?? item.poiYPos ?? item.y ?? null,
     }));
 }
 
@@ -375,6 +356,13 @@ function buildRouteRequest(sequence, filePath, timestamp, endpoint, rawPayload, 
     requestBearing: null,
     requestSourceType: null,
     requestLocationTime: null,
+    // #RpLog specific
+    rpId: null,
+    rpOption: null,
+    rpLabel: null,
+    sessionId: null,
+    responseTimeMs: null,
+    responseSize: null,
   };
 }
 
@@ -513,24 +501,44 @@ export async function extractLogs(files, progressCallback = null, mode = 'all') 
     };
 
     let currentMmResult = null;
-    let recentRouteRequestData = null;
-    let pendingRoutePost = null;
-    let pendingRouteReqLog = null;
-    let pendingRouteResp = null;   // accumulator for split <-- NNN response lines
-    const unmatchedRouteIndices = [];
     let recentLocation = null;
     const ttsStatusByRequestId = {};
+    // #RpLog state: key = `${sgId}:${rpId}` → entry
+    const rplogMap = new Map();
+    // most-recent rpId per session group that started accumulating REQ
+    const rplogSessionLastRpId = new Map();
+
+    // Finalize a pending #RpLog entry into a routeRequest
+    function finalizeRpLogEntry(entry) {
+      if (entry.finalized) return;
+      entry.finalized = true;
+      const payload = extractPartialRoutePayload(entry.reqBuffer);
+      const rr = buildRouteRequest(routeSequence, file.name,
+        entry.timestamp || timestamp, entry.endpoint || '', entry.reqBuffer, payload);
+      routeSequence++;
+      rr.rpId      = entry.rpId;
+      rr.rpOption  = entry.rpOption;
+      rr.rpLabel   = `RP-${entry.rpId}-${entry.rpOption}`;
+      rr.sessionId = entry.sessionId || null;
+      rr.responseTimeMs = entry.responseTimeMs;
+      rr.responseSize   = entry.responseSize;
+      if (entry.responseCode != null) {
+        rr.responseCode   = entry.responseCode;
+        rr.responseStatus = entry.responseCode >= 200 && entry.responseCode < 300 ? 'SUCCESS' : 'FAILED';
+        rr.responseMessage = entry.responseResult
+          ? `[${entry.responseResult}] (${entry.responseTimeMs}ms) SessionID: ${entry.sessionId || 'N/A'}`
+          : `HTTP ${entry.responseCode}`;
+      }
+      applyRecentLocationToRequest(rr, recentLocation);
+      routeRequests.push(rr);
+    }
 
     for await (const record of iterateDltRecords(file, onFileProgress, interestingMarkers)) {
       const { text: line, timestamp } = record;
 
       const hasLocation = line.includes('#onLocationChanged') && line.includes('Location[');
       const hasMm = doGps && (line.includes('[MM_RESULT]') || currentMmResult != null);
-      const hasRoute = doRoute && (
-        line.includes('RouteRequestData(') || line.includes('#RpLog[') ||
-        line.includes('okhttp.OkHttpClient') || line.includes('okhttpclient[') ||
-        pendingRoutePost != null || pendingRouteReqLog != null || pendingRouteResp != null
-      );
+      const hasRoute = doRoute && line.includes('#RpLog[');
       const hasTts = doTts && line.includes('requestTTS');
 
       // ---- Location ---- //
@@ -609,229 +617,83 @@ export async function extractLogs(files, progressCallback = null, mode = 'all') 
         }
       }
 
-      // ---- RouteRequestData ---- //
+      // ---- Route (#RpLog) ---- //
       if (hasRoute) {
-        const rdM = ROUTE_REQUEST_DATA_RE.exec(line);
-        if (rdM) {
-          recentRouteRequestData = {
-            timestamp,
-            departName: rdM[3].trim(),
-            departLat: parseFloat(rdM[1]),
-            departLon: parseFloat(rdM[2]),
-            destName: rdM[6].trim(),
-            destLat: parseFloat(rdM[4]),
-            destLon: parseFloat(rdM[5]),
-            filePath: file.name,
-          };
-          const rr = buildRouteRequest(routeSequence, file.name, timestamp, 'RouteRequestData', line);
-          rr.departName = recentRouteRequestData.departName;
-          rr.destName = recentRouteRequestData.destName;
-          rr.departLat = recentRouteRequestData.departLat;
-          rr.departLon = recentRouteRequestData.departLon;
-          rr.destLat = recentRouteRequestData.destLat;
-          rr.destLon = recentRouteRequestData.destLon;
-          applyRecentLocationToRequest(rr, recentLocation);
-          routeRequests.push(rr);
-          unmatchedRouteIndices.push(routeRequests.length - 1);
-          routeSequence++;
-        }
-
-        // Partial payload from line
-        if (
-          line.includes('destSearchDetailFlag') || line.includes('destSearchFlag') ||
-          line.includes('departXPos') || line.includes('destXPos') || line.includes('departSrchFlag')
-        ) {
-          const partial = extractPartialRoutePayload(line);
-          if (partial && Object.keys(partial).length > 0) {
-            let target = null;
-            if (pendingRouteReqLog?.targetRequest) {
-              target = pendingRouteReqLog.targetRequest;
-            } else {
-              for (let i = routeRequests.length - 1; i >= 0; i--) {
-                if (routeRequests[i].filePath === file.name) { target = routeRequests[i]; break; }
-              }
-            }
-            if (target) applyRoutePayload(target, partial, line, target.endpoint);
-          }
-        }
-
-        // POST detection
-        const postM = ROUTE_POST_RE.exec(line);
+        const postM = RPLOG_POST_RE.exec(line);
         if (postM) {
-          pendingRoutePost = { timestamp, endpoint: postM[1], buffer: '' };
-          continue;
-        }
-      }
-
-      // Accumulate POST body (use extractDltContinuationChunk to also catch
-      // continuation records that lack the okhttp.OkHttpClient prefix)
-      if (pendingRoutePost) {
-        const msg = extractDltContinuationChunk(line);
-        if (msg) pendingRoutePost.buffer += msg;
-
-        if (pendingRoutePost.buffer.includes('}')) {
-          const jsonText = extractFirstJsonObject(pendingRoutePost.buffer);
-          if (jsonText) {
-            let routePayload = null;
-            try { routePayload = JSON.parse(jsonText); } catch { /* ignore */ }
-
-            if (routePayload && 'departXPos' in routePayload && 'destXPos' in routePayload) {
-              const rr = buildRouteRequest(routeSequence, file.name,
-                pendingRoutePost.timestamp || timestamp, pendingRoutePost.endpoint, jsonText, routePayload);
-
-              if (recentRouteRequestData &&
-                recentRouteRequestData.departName === rr.departName &&
-                recentRouteRequestData.destName === rr.destName) {
-                rr.departLat = recentRouteRequestData.departLat;
-                rr.departLon = recentRouteRequestData.departLon;
-                rr.destLat = recentRouteRequestData.destLat;
-                rr.destLon = recentRouteRequestData.destLon;
-              }
-              applyRecentLocationToRequest(rr, recentLocation);
-              routeRequests.push(rr);
-              unmatchedRouteIndices.push(routeRequests.length - 1);
-              routeSequence++;
-              pendingRoutePost = null;
-              continue;
-            }
+          const [, sgId, label, url] = postM;
+          const rpInfo = parseRpLabel(label);
+          if (rpInfo) {
+            rplogMap.set(`${sgId}:${rpInfo.rpId}`, {
+              sgId, ...rpInfo, timestamp, endpoint: url,
+              reqBuffer: '', hasReqStarted: false, finalized: false,
+              responseCode: null, responseTimeMs: null, sessionId: null,
+              responseResult: null, responseSize: null,
+            });
           }
-        }
-        if (line.includes('--> END POST')) pendingRoutePost = null;
-      }
-
-      // RpLog
-      if (hasRoute) {
-        const rpM = ROUTE_REQ_LOG_RE.exec(line);
-        if (rpM) {
-          const partial = extractPartialRoutePayload(rpM[1]);
-          let target = null;
-          if (partial && Object.keys(partial).length > 0) {
-            for (let i = routeRequests.length - 1; i >= 0; i--) {
-              const rr = routeRequests[i];
-              if (rr.filePath !== file.name) continue;
-              const sameDepart = !rr.departName || rr.departName === (partial.departName || '');
-              const sameDest = !rr.destName || rr.destName === (partial.destName || '');
-              if (sameDepart && sameDest) { target = rr; break; }
+        } else {
+          const reqM = RPLOG_REQ_RE.exec(line);
+          if (reqM) {
+            const [, sgId, label, body] = reqM;
+            const rpInfo = parseRpLabel(label);
+            if (rpInfo) {
+              const key = `${sgId}:${rpInfo.rpId}`;
+              let entry = rplogMap.get(key);
+              if (!entry) {
+                entry = {
+                  sgId, ...rpInfo, timestamp, endpoint: '',
+                  reqBuffer: '', hasReqStarted: false, finalized: false,
+                  responseCode: null, responseTimeMs: null, sessionId: null,
+                  responseResult: null, responseSize: null,
+                };
+                rplogMap.set(key, entry);
+              }
+              entry.reqBuffer = body;
+              entry.hasReqStarted = true;
+              rplogSessionLastRpId.set(sgId, rpInfo.rpId);
             }
-            if (!target) {
-              target = buildRouteRequest(routeSequence, file.name, timestamp, 'RpLogRequest', rpM[1], partial);
-              applyRecentLocationToRequest(target, recentLocation);
-              routeRequests.push(target);
-              unmatchedRouteIndices.push(routeRequests.length - 1);
-              routeSequence++;
+          } else {
+            const respM = RPLOG_RESP_RE.exec(line);
+            if (respM) {
+              const [, sgId, label, code, ms, sessionId] = respM;
+              const rpInfo = parseRpLabel(label);
+              if (rpInfo) {
+                const entry = rplogMap.get(`${sgId}:${rpInfo.rpId}`);
+                if (entry) {
+                  entry.responseCode = parseInt(code, 10);
+                  entry.responseTimeMs = parseInt(ms, 10);
+                  entry.sessionId = sessionId;
+                }
+              }
             } else {
-              applyRoutePayload(target, partial, rpM[1], target.endpoint);
-              if (!target.requestLat) applyRecentLocationToRequest(target, recentLocation);
-            }
-          }
-          pendingRouteReqLog = { timestamp, buffer: rpM[1], targetRequest: target };
-        } else if (pendingRouteReqLog) {
-          const chunk = extractDltContinuationChunk(line);
-          if (chunk) {
-            pendingRouteReqLog.buffer += chunk;
-            if (pendingRouteReqLog.buffer.includes('}')) {
-              const partial = extractPartialRoutePayload(pendingRouteReqLog.buffer);
-              if (partial && pendingRouteReqLog.targetRequest) {
-                applyRoutePayload(pendingRouteReqLog.targetRequest, partial, pendingRouteReqLog.buffer, pendingRouteReqLog.targetRequest.endpoint);
-                if (!pendingRouteReqLog.targetRequest.requestLat)
-                  applyRecentLocationToRequest(pendingRouteReqLog.targetRequest, recentLocation);
-              }
-            }
-          }
-        }
-
-        if (pendingRouteReqLog && pendingRouteReqLog.buffer.includes('}')) {
-          const jsonText = extractFirstJsonObject(pendingRouteReqLog.buffer);
-          if (jsonText) {
-            let routePayload = null;
-            try { routePayload = JSON.parse(jsonText); } catch { /* ignore */ }
-            if (routePayload && 'departXPos' in routePayload && 'destXPos' in routePayload) {
-              let target = null;
-              for (let i = routeRequests.length - 1; i >= 0; i--) {
-                const rr = routeRequests[i];
-                if (rr.filePath !== file.name) continue;
-                const sd = !rr.departName || rr.departName === (routePayload.departName || '');
-                const dd = !rr.destName || rr.destName === (routePayload.destName || '');
-                if (sd && dd) { target = rr; break; }
-              }
-              if (!target) {
-                target = buildRouteRequest(routeSequence, file.name,
-                  pendingRouteReqLog.timestamp || timestamp, 'RpLogRequest', jsonText, routePayload);
-                applyRecentLocationToRequest(target, recentLocation);
-                routeRequests.push(target);
-                unmatchedRouteIndices.push(routeRequests.length - 1);
-                routeSequence++;
+              const resM = RPLOG_RES_RE.exec(line);
+              if (resM) {
+                const [, sgId, label, resultCode, resultMsg, size] = resM;
+                const rpInfo = parseRpLabel(label);
+                if (rpInfo) {
+                  const entry = rplogMap.get(`${sgId}:${rpInfo.rpId}`);
+                  if (entry) {
+                    entry.responseResult = `${resultCode} ${resultMsg}`;
+                    entry.responseSize = size;
+                    finalizeRpLogEntry(entry);
+                  }
+                }
               } else {
-                applyRoutePayload(target, routePayload, jsonText, target.endpoint);
-                if (!target.requestLat) applyRecentLocationToRequest(target, recentLocation);
+                // Continuation: #RpLog[sgId]:data (no [RP-label] present)
+                const contM = /#RpLog\[(\d+)\]:([^\[].*)/.exec(line);
+                if (contM) {
+                  const [, sgId, chunk] = contM;
+                  const lastRpId = rplogSessionLastRpId.get(sgId);
+                  if (lastRpId != null) {
+                    const entry = rplogMap.get(`${sgId}:${lastRpId}`);
+                    if (entry && entry.hasReqStarted && !entry.finalized) {
+                      entry.reqBuffer += chunk;
+                    }
+                  }
+                }
               }
-              pendingRouteReqLog = null;
             }
           }
-        }
-
-        // Response codes
-        const respM = ROUTE_RESP_RE.exec(line);
-        if (respM) {
-          // Full response line matched in a single record
-          assignResponseCode(routeRequests, unmatchedRouteIndices,
-            parseInt(respM[1], 10), respM[2]);
-          pendingRouteResp = null;
-        } else if (pendingRouteResp != null) {
-          // Accumulate continuation of a split response line
-          const chunk = extractDltContinuationChunk(line);
-          if (chunk) pendingRouteResp.buffer += chunk;
-
-          const accM = ROUTE_RESP_RE.exec(pendingRouteResp.buffer);
-          if (accM) {
-            assignResponseCode(routeRequests, unmatchedRouteIndices,
-              parseInt(accM[1], 10), accM[2]);
-            pendingRouteResp = null;
-          } else if (pendingRouteResp.buffer.length > 512) {
-            // Buffer overflow — extract status code only and fall back
-            const codeM = /<--\s*(\d{3})/.exec(pendingRouteResp.buffer);
-            if (codeM) {
-              assignResponseCode(routeRequests, unmatchedRouteIndices,
-                parseInt(codeM[1], 10), null);
-            }
-            pendingRouteResp = null;
-          }
-        } else if (line.includes('<--') &&
-                   (line.includes('okhttp.OkHttpClient') || line.includes('okhttpclient['))) {
-          // Response line might be split — start buffering if we see a status code
-          const msg = extractOkhttpMessage(line);
-          if (msg && /<--\s*\d{3}/.test(msg)) {
-            pendingRouteResp = { buffer: msg };
-          }
-        }
-
-        const failedM = ROUTE_RESP_FAILED_RE.exec(line);
-        if (failedM && unmatchedRouteIndices.length > 0) {
-          const rr = routeRequests[unmatchedRouteIndices[unmatchedRouteIndices.length - 1]];
-          if (rr.responseCode == null) {
-            rr.responseStatus = 'FAILED';
-            rr.responseMessage = failedM[1].trim();
-          }
-        }
-
-        const successM = ROUTE_SUCCESS_RE.exec(line);
-        if (successM && unmatchedRouteIndices.length > 0) {
-          const rr = routeRequests[unmatchedRouteIndices[unmatchedRouteIndices.length - 1]];
-          // Always update: this log line contains sessionId — don't skip even if
-          // responseStatus was already set by assignResponseCode (HTTP status).
-          rr.responseStatus = 'SUCCESS';
-          rr.responseMessage = successM[1].trim();
-        }
-
-        const routeFailM = ROUTE_FAILED_RE.exec(line);
-        if (routeFailM && unmatchedRouteIndices.length > 0) {
-          const rr = routeRequests[unmatchedRouteIndices[unmatchedRouteIndices.length - 1]];
-          // Update responseMessage (may contain sessionId); preserve SUCCESS if HTTP
-          // already confirmed it, but override UNKNOWN/null status.
-          if (rr.responseCode == null) {
-            rr.responseStatus = 'FAILED';
-          }
-          rr.responseMessage = routeFailM[1].trim();
         }
       }
 
@@ -855,6 +717,11 @@ export async function extractLogs(files, progressCallback = null, mode = 'all') 
           ttsLogs.push(entry);
         }
       }
+    }
+
+    // Finalize any #RpLog entries that never received a RES line
+    for (const entry of rplogMap.values()) {
+      finalizeRpLogEntry(entry);
     }
 
     processedBytesBeforeFile += fileSize;
@@ -893,13 +760,11 @@ export async function extractLogs(files, progressCallback = null, mode = 'all') 
   }
 
   routeRequests.forEach(fillCoords);
-  const merged = mergeRouteRequests(routeRequests);
-  merged.forEach(fillCoords);
 
   return {
     locationLogs,
     mmLogs,
-    routeRequests: merged,
+    routeRequests,
     ttsLogs,
   };
 }
