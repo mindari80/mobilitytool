@@ -166,24 +166,6 @@
       word-break: break-all;
     }
 
-    #analyze-extra-btn {
-      width: 100%;
-      padding: 10px 16px;
-      background: linear-gradient(135deg, #0f766e, #14b8a6);
-      color: #fff;
-      border: none;
-      border-radius: 10px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: opacity 0.2s;
-    }
-    #analyze-extra-btn:hover { opacity: 0.85; }
-    #analyze-extra-btn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
     /* ---- Progress ---- */
     #progress-section { display: flex; flex-direction: column; gap: 6px; }
     .progress-track {
@@ -481,7 +463,7 @@
       <div class="stat-value" id="stat-route">—</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label" style="color:#f97316">TTS 안내</div>
+      <div class="stat-label" style="color:#f97316">음성안내</div>
       <div class="stat-value" id="stat-tts">—</div>
     </div>
     <div class="stat-card wide">
@@ -489,9 +471,6 @@
       <div class="stat-value small" id="stat-timerange">—</div>
     </div>
   </div>
-
-  <!-- Route/TTS additional analysis -->
-  <button id="analyze-extra-btn" hidden>경로 요청 / TTS 추가 분석</button>
 
   <!-- Coordinate search -->
   <div id="coord-panel">
@@ -540,7 +519,7 @@
     </label>
     <label class="layer-row">
       <input type="checkbox" data-layer="tts" checked>
-      <span class="layer-dot" style="background:var(--tts)"></span>TTS 안내
+      <span class="layer-dot" style="background:var(--tts)"></span>음성안내
     </label>
   </div>
   <!-- Bottom: analysis count + logo -->

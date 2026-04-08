@@ -87,7 +87,7 @@ function routePopupHtml(rr) {
 function ttsPopupHtml(entry) {
   return `
     <div>
-      ${field('Type', 'TTS Guidance')}
+      ${field('Type', '음성안내')}
       ${field('Log File', entry.filePath)}
       ${field('Log Time', formatTimestamp(entry.timestamp))}
       ${field('Status', entry.status)}

@@ -37,7 +37,6 @@ const statRoute       = document.getElementById('stat-route');
 const statTts         = document.getElementById('stat-tts');
 const statTimeRange   = document.getElementById('stat-timerange');
 const layerPanel      = document.getElementById('layer-panel');
-const analyzeExtraBtn  = document.getElementById('analyze-extra-btn');
 const coordTypeButtons = document.querySelectorAll('.coord-type-btn');
 const coordXInput      = document.getElementById('coord-x');
 const coordYInput      = document.getElementById('coord-y');
@@ -237,16 +236,6 @@ dropZone.addEventListener('drop', async e => {
   await analyzeGps(files, names);
 });
 
-// ---- "경로/TTS 추가 분석" button ----------------------------------------- //
-
-analyzeExtraBtn.addEventListener('click', () => {
-  if (!phase1Result) return;
-
-  // Route/TTS data was already collected in Phase 1 — just render it
-  displayResults(phase1Result);
-  analyzeExtraBtn.hidden = true;
-});
-
 // ---- Directory scan: File System Access API ------------------------------ //
 
 async function scanDirectory(dirHandle, onFound = null) {
@@ -333,7 +322,6 @@ function startProgress(name = '') {
   progressSection.hidden = false;
   statsSection.hidden = true;
   layerPanel.hidden = true;
-  analyzeExtraBtn.hidden = true;
   progressFiles.innerHTML = '';
   folderName.textContent = name ? `📁 ${name}` : '';
 }
@@ -401,13 +389,6 @@ async function analyzeGps(dltFiles, displayNames) {
     updateCountDisplay();
 
     displayResults(result);
-
-    // Show "경로/TTS 결과 보기" button only when there is route/TTS data
-    if (result.routeRequests.length > 0 || result.ttsLogs.length > 0) {
-      analyzeExtraBtn.hidden   = false;
-      analyzeExtraBtn.disabled = false;
-      analyzeExtraBtn.textContent = `경로 요청(${result.routeRequests.length}) / TTS(${result.ttsLogs.length}) 결과 보기`;
-    }
   } catch (err) {
     setProgress(0, '오류 발생', err.message || String(err));
     showError(err);
