@@ -125,10 +125,10 @@ function divIcon(html, size, anchor, popupAnchor) {
 export function initMap(containerId, center = [37.5665, 126.9780]) {
   if (map) { map.remove(); map = null; }
 
-  map = L.map(containerId, { preferCanvas: true, maxZoom: 22 }).setView(center, 15);
+  map = L.map(containerId, { preferCanvas: true, maxZoom: 19 }).setView(center, 15);
 
   L.tileLayer('https://tlpimg1.tmap.co.kr/tms/1.0.0/hd_tile/{z}/{x}/{-y}.png', {
-    minZoom: 5, maxZoom: 22, maxNativeZoom: 20,
+    minZoom: 5, maxZoom: 19,
     attribution: 'TMAP',
   }).addTo(map);
 
