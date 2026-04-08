@@ -264,6 +264,25 @@ export function renderLogs(locationLogs, mmLogs, routeRequests, ttsLogs) {
     }).bindPopup(popup).addTo(layer);
   });
 
+  // MM GPS Pos → Match Pos 편차 연결선
+  const mmPairMap = new Map();
+  sortedMm.forEach(p => {
+    if (!mmPairMap.has(p.details)) mmPairMap.set(p.details, {});
+    const pair = mmPairMap.get(p.details);
+    if (p.sourceType === 'mm_gps')        pair.gps   = p;
+    else if (p.sourceType === 'mm_match') pair.match = p;
+  });
+  for (const { gps, match } of mmPairMap.values()) {
+    if (gps && match) {
+      L.polyline([[gps.lat, gps.lon], [match.lat, match.lon]], {
+        color: '#a855f7',
+        weight: 1.5,
+        opacity: 0.7,
+        dashArray: '3 4',
+      }).addTo(layers.mmMatch);
+    }
+  }
+
   // Route request markers
   const routeIcon = divIcon(routeIconHtml, [30, 36], [15, 34], [0, -30]);
   sortedRoute.forEach((rr, idx) => {
