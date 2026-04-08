@@ -235,6 +235,50 @@ function extractPartialRoutePayload(text) {
   return payload;
 }
 
+// ---- Route response helpers ---------------------------------------------- //
+
+/**
+ * Loosely compare two route endpoint URLs.
+ * Handles truncated URLs (one is a prefix of the other) and
+ * trailing-slash / query-param differences.
+ */
+function endpointsMatch(a, b) {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const norm = s => s.replace(/[?#].*/, '').replace(/\/$/, '');
+  const na = norm(a), nb = norm(b);
+  return na === nb || na.startsWith(nb) || nb.startsWith(na);
+}
+
+/**
+ * Assign an HTTP response code to the best matching pending route request.
+ * First tries fuzzy endpoint URL matching; falls back to most-recent-unmatched.
+ */
+function assignResponseCode(requests, unmatchedIndices, code, endpoint) {
+  if (endpoint) {
+    for (let i = unmatchedIndices.length - 1; i >= 0; i--) {
+      const rr = requests[unmatchedIndices[i]];
+      if (endpointsMatch(rr.endpoint, endpoint) && rr.responseCode == null) {
+        rr.responseCode = code;
+        rr.responseStatus = code >= 200 && code < 300 ? 'SUCCESS' : 'FAILED';
+        rr.responseMessage = `HTTP ${code}`;
+        return true;
+      }
+    }
+  }
+  // Fallback: no endpoint match — use most recent unmatched request
+  for (let i = unmatchedIndices.length - 1; i >= 0; i--) {
+    const rr = requests[unmatchedIndices[i]];
+    if (rr.responseCode == null) {
+      rr.responseCode = code;
+      rr.responseStatus = code >= 200 && code < 300 ? 'SUCCESS' : 'FAILED';
+      rr.responseMessage = `HTTP ${code}`;
+      return true;
+    }
+  }
+  return false;
+}
+
 // ---- Route request builder ----------------------------------------------- //
 
 function normalizeWaypoints(payload) {
@@ -450,6 +494,7 @@ export async function extractLogs(files, progressCallback = null) {
     let recentRouteRequestData = null;
     let pendingRoutePost = null;
     let pendingRouteReqLog = null;
+    let pendingRouteResp = null;   // accumulator for split <-- NNN response lines
     const unmatchedRouteIndices = [];
     let recentLocation = null;
     const ttsStatusByRequestId = {};
@@ -462,7 +507,7 @@ export async function extractLogs(files, progressCallback = null) {
       const hasRoute = (
         line.includes('RouteRequestData(') || line.includes('#RpLog[') ||
         line.includes('okhttp.OkHttpClient') || line.includes('okhttpclient[') ||
-        pendingRoutePost != null || pendingRouteReqLog != null
+        pendingRoutePost != null || pendingRouteReqLog != null || pendingRouteResp != null
       );
       const hasTts = line.includes('requestTTS');
 
@@ -594,9 +639,10 @@ export async function extractLogs(files, progressCallback = null) {
         }
       }
 
-      // Accumulate POST body
+      // Accumulate POST body (use extractDltContinuationChunk to also catch
+      // continuation records that lack the okhttp.OkHttpClient prefix)
       if (pendingRoutePost) {
-        const msg = extractOkhttpMessage(line);
+        const msg = extractDltContinuationChunk(line);
         if (msg) pendingRoutePost.buffer += msg;
 
         if (pendingRoutePost.buffer.includes('}')) {
@@ -703,16 +749,35 @@ export async function extractLogs(files, progressCallback = null) {
         // Response codes
         const respM = ROUTE_RESP_RE.exec(line);
         if (respM) {
-          const code = parseInt(respM[1], 10);
-          const ep = respM[2];
-          for (let i = unmatchedRouteIndices.length - 1; i >= 0; i--) {
-            const rr = routeRequests[unmatchedRouteIndices[i]];
-            if (rr.endpoint === ep && rr.responseCode == null) {
-              rr.responseCode = code;
-              rr.responseStatus = code >= 200 && code < 300 ? 'SUCCESS' : 'FAILED';
-              rr.responseMessage = `HTTP ${code}`;
-              break;
+          // Full response line matched in a single record
+          assignResponseCode(routeRequests, unmatchedRouteIndices,
+            parseInt(respM[1], 10), respM[2]);
+          pendingRouteResp = null;
+        } else if (pendingRouteResp != null) {
+          // Accumulate continuation of a split response line
+          const chunk = extractDltContinuationChunk(line);
+          if (chunk) pendingRouteResp.buffer += chunk;
+
+          const accM = ROUTE_RESP_RE.exec(pendingRouteResp.buffer);
+          if (accM) {
+            assignResponseCode(routeRequests, unmatchedRouteIndices,
+              parseInt(accM[1], 10), accM[2]);
+            pendingRouteResp = null;
+          } else if (pendingRouteResp.buffer.length > 512) {
+            // Buffer overflow — extract status code only and fall back
+            const codeM = /<--\s*(\d{3})/.exec(pendingRouteResp.buffer);
+            if (codeM) {
+              assignResponseCode(routeRequests, unmatchedRouteIndices,
+                parseInt(codeM[1], 10), null);
             }
+            pendingRouteResp = null;
+          }
+        } else if (line.includes('<--') &&
+                   (line.includes('okhttp.OkHttpClient') || line.includes('okhttpclient['))) {
+          // Response line might be split — start buffering if we see a status code
+          const msg = extractOkhttpMessage(line);
+          if (msg && /<--\s*\d{3}/.test(msg)) {
+            pendingRouteResp = { buffer: msg };
           }
         }
 
