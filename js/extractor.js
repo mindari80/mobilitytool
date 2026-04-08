@@ -793,19 +793,21 @@ export async function extractLogs(files, progressCallback = null) {
         const successM = ROUTE_SUCCESS_RE.exec(line);
         if (successM && unmatchedRouteIndices.length > 0) {
           const rr = routeRequests[unmatchedRouteIndices[unmatchedRouteIndices.length - 1]];
-          if (rr.responseStatus === 'UNKNOWN' || rr.responseStatus == null) {
-            rr.responseStatus = 'SUCCESS';
-            rr.responseMessage = successM[1].trim();
-          }
+          // Always update: this log line contains sessionId — don't skip even if
+          // responseStatus was already set by assignResponseCode (HTTP status).
+          rr.responseStatus = 'SUCCESS';
+          rr.responseMessage = successM[1].trim();
         }
 
         const routeFailM = ROUTE_FAILED_RE.exec(line);
         if (routeFailM && unmatchedRouteIndices.length > 0) {
           const rr = routeRequests[unmatchedRouteIndices[unmatchedRouteIndices.length - 1]];
+          // Update responseMessage (may contain sessionId); preserve SUCCESS if HTTP
+          // already confirmed it, but override UNKNOWN/null status.
           if (rr.responseCode == null) {
             rr.responseStatus = 'FAILED';
-            rr.responseMessage = routeFailM[1].trim();
           }
+          rr.responseMessage = routeFailM[1].trim();
         }
       }
 
