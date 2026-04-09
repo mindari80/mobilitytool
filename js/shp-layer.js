@@ -50,6 +50,20 @@ export function setLinkSelectMode(active, onSelect) {
 
 // ---- Viewport query ------------------------------------------------------ //
 
+// GCS_Tokyo raw bbox is ~0.002-0.003° south of WGS84 due to datum shift.
+// Expand query bounds so features near edges are not missed.
+const QUERY_BUFFER = 0.01;  // ~1km, safely covers the ~250m datum offset
+
+function queryBounds(map) {
+  const b = map.getBounds();
+  return [
+    b.getWest()  - QUERY_BUFFER,
+    b.getSouth() - QUERY_BUFFER,
+    b.getEast()  + QUERY_BUFFER,
+    b.getNorth() + QUERY_BUFFER,
+  ];
+}
+
 function updateViewport() {
   const map = getMap();
   if (!map) return;
@@ -60,13 +74,8 @@ function updateViewport() {
     if (!show || !linkEnabled || !linkWorker) {
       linkLayer.clearLayers();
     } else {
-      const b = map.getBounds();
       linkQueryId++;
-      linkWorker.postMessage({
-        type: 'query',
-        bounds: [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()],
-        queryId: linkQueryId,
-      });
+      linkWorker.postMessage({ type: 'query', bounds: queryBounds(map), queryId: linkQueryId });
     }
   }
 
@@ -74,13 +83,8 @@ function updateViewport() {
     if (!show || !nodeEnabled || !nodeWorker) {
       nodeLayer.clearLayers();
     } else {
-      const b = map.getBounds();
       nodeQueryId++;
-      nodeWorker.postMessage({
-        type: 'query',
-        bounds: [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()],
-        queryId: nodeQueryId,
-      });
+      nodeWorker.postMessage({ type: 'query', bounds: queryBounds(map), queryId: nodeQueryId });
     }
   }
 }
