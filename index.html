@@ -328,7 +328,9 @@
     /* ---- Company logo ---- */
     #company-logo {
       text-align: center;
-      padding-bottom: 4px;
+      padding: 12px 0 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      margin-bottom: 8px;
     }
     #company-logo img {
       max-width: 160px;
@@ -411,6 +413,13 @@
 <body>
 
 <aside id="sidebar">
+  <div id="company-logo">
+    <img src="images/skms-logo.png" alt="SK m&amp;service" draggable="false"
+         onerror="this.style.display='none';document.getElementById('logo-fallback').style.display='flex'">
+    <div id="logo-fallback" style="display:none">
+      <span class="logo-sk">SK</span><span class="logo-ms">m&amp;service</span>
+    </div>
+  </div>
   <div>
     <h1>DLT GPS Log Viewer</h1>
     <p class="subtitle">.dlt 파일을 선택하면 브라우저에서 직접 분석해 TMAP 지도에 표시합니다.</p>
@@ -529,13 +538,6 @@
       <span id="bottom-analysis-count" class="ac-value">0</span>
     </div>
     <div id="version-label">v2026.04.08 · build 27</div>
-    <div id="company-logo">
-      <img src="images/skms-logo.png" alt="SK m&amp;service" draggable="false"
-           onerror="this.style.display='none';document.getElementById('logo-fallback').style.display='flex'">
-      <div id="logo-fallback" style="display:none">
-        <span class="logo-sk">SK</span><span class="logo-ms">m&amp;service</span>
-      </div>
-    </div>
   </div>
 </aside>
 
