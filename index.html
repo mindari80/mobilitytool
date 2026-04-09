@@ -292,6 +292,34 @@
       border-radius: 6px;
     }
     details summary { cursor: pointer; font-weight: 600; margin-top: 6px; }
+    .coord-help {
+      background: rgba(15,23,42,0.6);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 10px;
+      margin-bottom: 8px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .coord-help summary {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--accent);
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .coord-help summary::before { content: '▸'; font-size: 10px; }
+    .coord-help[open] summary::before { content: '▾'; }
+    .coord-help ul {
+      margin: 8px 0 2px;
+      padding-left: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      line-height: 1.5;
+    }
 
     /* ---- Sidebar bottom (count + logo) ---- */
     #sidebar-bottom {
@@ -484,6 +512,15 @@
   <!-- Coordinate search -->
   <div id="coord-panel">
     <h2>좌표 검색</h2>
+    <details class="coord-help">
+      <summary>사용 방법</summary>
+      <ul>
+        <li><b>SK 좌표</b>: TMAP 내부 좌표계. X는 경도 방향(예: 4571910), Y는 위도 방향(예: 1347000).</li>
+        <li><b>WGS84</b>: 일반 GPS 좌표. X는 경도(예: 127.0276), Y는 위도(예: 37.4979).</li>
+        <li>값 입력 후 <b>지도에 표시</b>를 누르면 해당 위치에 마커가 표시됩니다.</li>
+        <li>DLT 로그의 팝업에서 좌표를 복사해 붙여넣어 사용할 수 있습니다.</li>
+      </ul>
+    </details>
     <div class="coord-type-row">
       <button class="coord-type-btn active" data-ctype="sk">SK 좌표</button>
       <button class="coord-type-btn" data-ctype="wgs84">WGS84</button>
