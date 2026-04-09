@@ -310,6 +310,33 @@
     #map-wrap { flex: 1; position: relative; }
     #map { width: 100%; height: 100vh; }
 
+    /* ---- Ruler cursor override (beat Leaflet grab cursor) ---- */
+    #map.ruler-mode,
+    #map.ruler-mode .leaflet-container,
+    #map.ruler-mode .leaflet-grab,
+    #map.ruler-mode .leaflet-interactive,
+    #map.ruler-mode canvas { cursor: crosshair !important; }
+
+    /* ---- Ruler badge on map ---- */
+    #ruler-badge {
+      display: none;
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(245,158,11,0.92);
+      color: #0b1220;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 5px 14px;
+      border-radius: 20px;
+      z-index: 1000;
+      pointer-events: none;
+      white-space: nowrap;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    }
+    #ruler-badge.visible { display: block; }
+
     /* ---- Ruler tooltip/popup ---- */
     .ruler-tooltip {
       background: rgba(15,23,42,0.85) !important;
@@ -667,6 +694,7 @@
 </div>
 
 <div id="map-wrap">
+  <div id="ruler-badge">📏 줄자 모드 켜짐 — 지도를 클릭하세요</div>
   <div id="map"></div>
 </div>
 

@@ -48,6 +48,8 @@ const coordResult      = document.getElementById('coord-result');
 const rulerToggleBtn   = document.getElementById('ruler-toggle-btn');
 const rulerClearBtn    = document.getElementById('ruler-clear-btn');
 const rulerStatus      = document.getElementById('ruler-status');
+const rulerBadge       = document.getElementById('ruler-badge');
+const mapDiv           = document.getElementById('map');
 
 // ---- State for two-phase analysis ---------------------------------------- //
 
@@ -168,8 +170,15 @@ function updateRulerStatus(state) {
     ready: '시작 지점을 클릭하세요.',
     start: '종료 지점을 클릭하세요.',
   };
+  const badgeMsgs = {
+    ready: '📏 줄자 모드 켜짐 — 시작 지점을 클릭하세요',
+    start: '📏 줄자 모드 켜짐 — 종료 지점을 클릭하세요',
+  };
   rulerStatus.textContent = msgs[state] || '';
   rulerStatus.className = state !== 'off' ? 'active' : '';
+  mapDiv.classList.toggle('ruler-mode', state !== 'off');
+  rulerBadge.textContent = badgeMsgs[state] || '';
+  rulerBadge.classList.toggle('visible', state !== 'off');
 }
 
 rulerToggleBtn.addEventListener('click', () => {

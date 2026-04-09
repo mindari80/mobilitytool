@@ -257,14 +257,13 @@ function handleRulerClick(e) {
 export function setRulerMode(active, onStateChange) {
   rulerActive = active;
   if (onStateChange) rulerOnStateChange = onStateChange;
-  if (map) map.getContainer().style.cursor = active ? 'crosshair' : '';
   rulerStart = null;
   if (rulerOnStateChange) rulerOnStateChange(active ? 'ready' : 'off');
 }
 
 export function clearRuler() {
   if (rulerLayer) rulerLayer.clearLayers();
-  map.closePopup();
+  if (map) map.closePopup();
   rulerStart = null;
   if (rulerActive && rulerOnStateChange) rulerOnStateChange('ready');
 }
