@@ -129,10 +129,10 @@ export function clearShpLayers() {
 
 /**
  * @param {File[]} files  - array of File objects (.shp, .dbf, etc.)
- * @param {(msg:string)=>void} onStatus - status callback
+ * @param {(pct:number, msg:string)=>void} onProgress - progress callback (0-100)
  * @returns {Promise<{name,count,type}[]>}
  */
-export async function loadShpFiles(files, onStatus) {
+export async function loadShpFiles(files, onProgress) {
   // Group by lowercase base name → { shp?: File, dbf?: File }
   const groups = new Map();
   for (const file of files) {
@@ -151,8 +151,7 @@ export async function loadShpFiles(files, onStatus) {
   for (const [base, group] of groups) {
     if (!group.shp) continue;
     const displayName = base.split(/[\\/]/).pop();
-    if (onStatus) onStatus(`읽는 중: ${displayName}...`);
-    const info = await renderShpGroup(displayName, group);
+    const info = await renderShpGroup(displayName, group, onProgress);
     results.push(info);
   }
   return results;
@@ -170,12 +169,29 @@ export function toggleShpNode(visible) {
 
 // ---- Internal rendering -------------------------------------------------- //
 
-async function renderShpGroup(name, group) {
-  const shpBuf = await group.shp.arrayBuffer();
-  const dbfBuf = group.dbf ? await group.dbf.arrayBuffer() : null;
+async function renderShpGroup(name, group, onProgress) {
+  const prog = (pct, msg) => { if (onProgress) onProgress(pct, msg); };
 
+  prog(5,  `[1/4] SHP 파일 읽는 중...`);
+  const shpBuf = await group.shp.arrayBuffer();
+
+  prog(25, `[2/4] 지오메트리 파싱 중...`);
+  // Small yield so the UI can repaint before heavy parse
+  await new Promise(r => setTimeout(r, 0));
   const geometries = window.shp.parseShp(shpBuf);
-  const attributes = dbfBuf ? window.shp.parseDbf(dbfBuf) : [];
+
+  let attributes = [];
+  if (group.dbf) {
+    prog(50, `[3/4] DBF 속성 읽는 중...`);
+    const dbfBuf = await group.dbf.arrayBuffer();
+    await new Promise(r => setTimeout(r, 0));
+    attributes = window.shp.parseDbf(dbfBuf);
+  } else {
+    prog(50, `[3/4] DBF 없음 — 속성 생략`);
+  }
+
+  prog(75, `[4/4] 공간 인덱스 생성 중...`);
+  await new Promise(r => setTimeout(r, 0));
 
   const features = geometries.map((geom, i) => ({
     type: 'Feature',
@@ -183,7 +199,7 @@ async function renderShpGroup(name, group) {
     properties: attributes[i] || {},
   }));
 
-  if (!features.length) return { name, count: 0, type: 'empty' };
+  if (!features.length) { prog(100, '완료 (feature 없음)'); return { name, count: 0, type: 'empty' }; }
 
   const geomType = features[0]?.geometry?.type || '';
   const isLine   = geomType === 'LineString' || geomType === 'MultiLineString';
@@ -231,6 +247,7 @@ async function renderShpGroup(name, group) {
   }
 
   updateViewport();
+  prog(100, `완료 — ${features.length.toLocaleString()}개 feature 로드`);
 
   return { name, count: features.length, type: isLine ? 'link' : 'node' };
 }

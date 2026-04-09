@@ -48,9 +48,12 @@ const rulerBadge       = document.getElementById('ruler-badge');
 const mapDiv           = document.getElementById('map');
 
 // SHP panel refs
-const shpFolderBtn     = document.getElementById('shp-folder-btn');
+const shpFileInput     = document.getElementById('shp-file-input');
 const shpClearBtn      = document.getElementById('shp-clear-btn');
 const shpStatus        = document.getElementById('shp-status');
+const shpProgress      = document.getElementById('shp-progress');
+const shpProgressFill  = document.getElementById('shp-progress-fill');
+const shpProgressLabel = document.getElementById('shp-progress-label');
 const shpLayerToggles  = document.getElementById('shp-layer-toggles');
 const shpLinkToggle    = document.getElementById('shp-link-toggle');
 const shpNodeToggle    = document.getElementById('shp-node-toggle');
@@ -202,33 +205,25 @@ function setCoordResult(msg, type) {
 
 // ---- SHP panel ----------------------------------------------------------- //
 
-shpFolderBtn.addEventListener('click', async () => {
-  let dirHandle;
-  try {
-    dirHandle = await window.showDirectoryPicker({ mode: 'read' });
-  } catch (e) {
-    if (e.name !== 'AbortError') {
-      shpStatus.textContent = `오류: ${e.message}`;
-      shpStatus.style.color = '#f87171';
-    }
-    return;
-  }
+function setShpProgress(pct, msg) {
+  shpProgress.hidden = false;
+  shpProgressFill.style.width = `${pct}%`;
+  shpProgressLabel.textContent = msg;
+}
 
-  shpStatus.textContent = '폴더 읽는 중...';
-  shpStatus.style.color = 'var(--muted)';
+shpFileInput.addEventListener('change', async () => {
+  const files = [...shpFileInput.files];
+  if (!files.length) return;
+
+  shpStatus.textContent = '';
   shpLayerToggles.hidden = true;
-
-  const files = [];
-  for await (const entry of dirHandle.values()) {
-    if (entry.kind === 'file') files.push(await entry.getFile());
-  }
+  setShpProgress(0, '준비 중...');
 
   try {
-    const results = await loadShpFiles(files, msg => {
-      shpStatus.textContent = msg;
-    });
+    const results = await loadShpFiles(files, (pct, msg) => setShpProgress(pct, msg));
 
     if (!results.length) {
+      shpProgress.hidden = true;
       shpStatus.textContent = 'SHP 파일을 찾을 수 없습니다.';
       shpStatus.style.color = '#f87171';
       return;
@@ -241,6 +236,7 @@ shpFolderBtn.addEventListener('click', async () => {
 
     shpStatus.textContent = summary + '\n(지도 레벨 17 이상에서 표시됩니다)';
     shpStatus.style.color = '#4ade80';
+    shpProgress.hidden = true;
 
     const hasLink = results.some(r => r.type === 'link');
     const hasNode = results.some(r => r.type === 'node');
@@ -251,7 +247,9 @@ shpFolderBtn.addEventListener('click', async () => {
   } catch (err) {
     shpStatus.textContent = `오류: ${err.message}`;
     shpStatus.style.color = '#f87171';
+    shpProgress.hidden = true;
   }
+  shpFileInput.value = '';
 });
 
 shpClearBtn.addEventListener('click', () => {
