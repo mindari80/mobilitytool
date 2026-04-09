@@ -166,6 +166,53 @@
       word-break: break-all;
     }
 
+    /* ---- Ruler panel ---- */
+    #ruler-panel {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    #ruler-panel h2 { font-size: 13px; font-weight: 600; color: var(--text); }
+    .ruler-actions { display: flex; gap: 6px; }
+    #ruler-toggle-btn {
+      flex: 1;
+      padding: 6px 0;
+      background: rgba(148,163,184,0.1);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 7px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    #ruler-toggle-btn.active {
+      background: #f59e0b;
+      border-color: #f59e0b;
+      color: #0b1220;
+    }
+    #ruler-clear-btn {
+      padding: 6px 10px;
+      background: rgba(148,163,184,0.1);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 7px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    #ruler-clear-btn:hover { opacity: 0.7; }
+    #ruler-status {
+      font-size: 11px;
+      color: var(--muted);
+      min-height: 14px;
+    }
+    #ruler-status.active { color: #f59e0b; }
+
     /* ---- Progress ---- */
     #progress-section { display: flex; flex-direction: column; gap: 6px; }
     .progress-track {
@@ -262,6 +309,28 @@
     /* ---- Map ---- */
     #map-wrap { flex: 1; position: relative; }
     #map { width: 100%; height: 100vh; }
+
+    /* ---- Ruler tooltip/popup ---- */
+    .ruler-tooltip {
+      background: rgba(15,23,42,0.85) !important;
+      border: 1px solid #f59e0b !important;
+      color: #f59e0b !important;
+      font-size: 11px !important;
+      font-weight: 600 !important;
+      padding: 2px 6px !important;
+      border-radius: 4px !important;
+      box-shadow: none !important;
+    }
+    .ruler-tooltip::before { display: none !important; }
+    .ruler-popup .leaflet-popup-content-wrapper {
+      background: rgba(15,23,42,0.92);
+      border: 1px solid #f59e0b;
+      color: #f59e0b;
+      border-radius: 8px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    }
+    .ruler-popup .leaflet-popup-tip { background: #f59e0b; }
+    .ruler-popup .leaflet-popup-close-button { color: #f59e0b !important; }
 
     /* ---- Popup styles ---- */
     .leaflet-popup-content { width: 500px !important; max-width: 500px; }
@@ -538,6 +607,16 @@
       <button id="coord-clear-btn">삭제</button>
     </div>
     <div id="coord-result"></div>
+  </div>
+
+  <!-- Ruler / distance measurement -->
+  <div id="ruler-panel">
+    <h2>📏 줄자</h2>
+    <div class="ruler-actions">
+      <button id="ruler-toggle-btn">줄자 모드 OFF</button>
+      <button id="ruler-clear-btn">지우기</button>
+    </div>
+    <div id="ruler-status">모드를 켜고 지도를 클릭하세요.</div>
   </div>
 
   <!-- Layer toggle -->

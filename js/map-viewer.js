@@ -13,6 +13,12 @@ let layers = {};
 let routeAnchorLayer = null;
 let coordLayer = null;
 
+// ---- Ruler state ---------------------------------------------------------- //
+let rulerLayer = null;
+let rulerActive = false;
+let rulerStart = null;   // L.LatLng of first click
+let rulerOnStateChange = null;  // callback(state: 'off'|'ready'|'start')
+
 export function getMap() { return map; }
 
 // ---- Popup HTML helpers -------------------------------------------------- //
@@ -177,7 +183,10 @@ export function initMap(containerId, center = [37.5665, 126.9780]) {
   routeAnchorLayer = L.layerGroup().addTo(map);
   coordLayer = L.layerGroup().addTo(map);
 
-  map.on('click', clearRouteAnchors);
+  map.on('click', e => {
+    if (rulerActive) { handleRulerClick(e); return; }
+    clearRouteAnchors();
+  });
 
   // Long tap / right-click → coordinate popup
   map.on('contextmenu', e => {
@@ -199,7 +208,65 @@ export function initMap(containerId, center = [37.5665, 126.9780]) {
       .openOn(map);
   });
 
+  rulerLayer = L.layerGroup().addTo(map);
+
   return map;
+}
+
+// ---- Ruler / distance measurement ---------------------------------------- //
+
+function formatDistance(meters) {
+  if (meters < 1000) return `${Math.round(meters)} m`;
+  return `${(meters / 1000).toFixed(2)} km`;
+}
+
+function handleRulerClick(e) {
+  const latlng = e.latlng;
+  if (!rulerStart) {
+    // First click — start marker
+    rulerStart = latlng;
+    L.circleMarker(latlng, {
+      radius: 6, color: '#f59e0b', fillColor: '#f59e0b', fillOpacity: 1, weight: 2,
+    }).bindTooltip('시작', { permanent: true, direction: 'top', offset: [0, -8],
+      className: 'ruler-tooltip' }).addTo(rulerLayer);
+    if (rulerOnStateChange) rulerOnStateChange('start');
+  } else {
+    // Second click — end marker + line + distance popup
+    const dist = rulerStart.distanceTo(latlng);
+    L.circleMarker(latlng, {
+      radius: 6, color: '#f59e0b', fillColor: '#fff', fillOpacity: 1, weight: 2,
+    }).bindTooltip('종료', { permanent: true, direction: 'top', offset: [0, -8],
+      className: 'ruler-tooltip' }).addTo(rulerLayer);
+    L.polyline([rulerStart, latlng], {
+      color: '#f59e0b', weight: 2, dashArray: '5 4', opacity: 0.9,
+    }).addTo(rulerLayer);
+    const mid = L.latLng(
+      (rulerStart.lat + latlng.lat) / 2,
+      (rulerStart.lng + latlng.lng) / 2,
+    );
+    L.popup({ closeButton: true, autoClose: false, closeOnClick: false, className: 'ruler-popup' })
+      .setLatLng(mid)
+      .setContent(`<div style="text-align:center;font-size:13px;font-weight:700">
+        📏 ${formatDistance(dist)}</div>`)
+      .openOn(map);
+    rulerStart = null;
+    if (rulerOnStateChange) rulerOnStateChange('ready');
+  }
+}
+
+export function setRulerMode(active, onStateChange) {
+  rulerActive = active;
+  if (onStateChange) rulerOnStateChange = onStateChange;
+  if (map) map.getContainer().style.cursor = active ? 'crosshair' : '';
+  rulerStart = null;
+  if (rulerOnStateChange) rulerOnStateChange(active ? 'ready' : 'off');
+}
+
+export function clearRuler() {
+  if (rulerLayer) rulerLayer.clearLayers();
+  map.closePopup();
+  rulerStart = null;
+  if (rulerActive && rulerOnStateChange) rulerOnStateChange('ready');
 }
 
 export function getLayerGroup(name) { return layers[name] || null; }

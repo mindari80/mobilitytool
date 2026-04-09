@@ -11,7 +11,7 @@
 'use strict';
 
 import { extractLogs, formatTimestamp } from './extractor.js';
-import { initMap, renderLogs, toggleLayer, addCoordMarker, clearCoordMarkers, getMap, setMapCenter } from './map-viewer.js';
+import { initMap, renderLogs, toggleLayer, addCoordMarker, clearCoordMarkers, getMap, setMapCenter, setRulerMode, clearRuler } from './map-viewer.js';
 import { skCoordToWgs84 } from './coordinate.js';
 
 // ---- DOM refs ------------------------------------------------------------ //
@@ -45,6 +45,9 @@ const coordLabelY      = document.getElementById('coord-label-y');
 const coordShowBtn     = document.getElementById('coord-show-btn');
 const coordClearBtn    = document.getElementById('coord-clear-btn');
 const coordResult      = document.getElementById('coord-result');
+const rulerToggleBtn   = document.getElementById('ruler-toggle-btn');
+const rulerClearBtn    = document.getElementById('ruler-clear-btn');
+const rulerStatus      = document.getElementById('ruler-status');
 
 // ---- State for two-phase analysis ---------------------------------------- //
 
@@ -154,6 +157,31 @@ coordClearBtn.addEventListener('click', () => {
 [coordXInput, coordYInput].forEach(el =>
   el.addEventListener('keydown', e => { if (e.key === 'Enter') coordShowBtn.click(); })
 );
+
+// ---- Ruler ---------------------------------------------------------------- //
+
+let rulerOn = false;
+
+function updateRulerStatus(state) {
+  const msgs = {
+    off:   '모드를 켜고 지도를 클릭하세요.',
+    ready: '시작 지점을 클릭하세요.',
+    start: '종료 지점을 클릭하세요.',
+  };
+  rulerStatus.textContent = msgs[state] || '';
+  rulerStatus.className = state !== 'off' ? 'active' : '';
+}
+
+rulerToggleBtn.addEventListener('click', () => {
+  rulerOn = !rulerOn;
+  rulerToggleBtn.textContent = rulerOn ? '줄자 모드 ON' : '줄자 모드 OFF';
+  rulerToggleBtn.classList.toggle('active', rulerOn);
+  setRulerMode(rulerOn, updateRulerStatus);
+});
+
+rulerClearBtn.addEventListener('click', () => {
+  clearRuler();
+});
 
 function setCoordResult(msg, type) {
   coordResult.textContent = msg;
