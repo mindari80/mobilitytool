@@ -424,6 +424,73 @@
       padding-top: 6px;
       border-top: 1px solid var(--border);
     }
+    #shp-link-select-btn {
+      width: 100%;
+      padding: 6px 0;
+      text-align: center;
+      background: rgba(148,163,184,0.1);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 7px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-top: 6px;
+    }
+    #shp-link-select-btn:hover { opacity: 0.85; }
+    #shp-link-select-btn.active {
+      background: rgba(245,158,11,0.15);
+      border-color: #f59e0b;
+      color: #f59e0b;
+    }
+    #shp-link-info {
+      margin-top: 8px;
+      border-top: 1px solid var(--border);
+      padding-top: 8px;
+    }
+    .shp-info-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .shp-info-header span {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--accent);
+    }
+    #shp-link-info-close {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 12px;
+      cursor: pointer;
+      padding: 0 2px;
+      line-height: 1;
+    }
+    #shp-link-info-close:hover { color: #f87171; }
+    #shp-link-info-body {
+      max-height: 240px;
+      overflow-y: auto;
+    }
+    .shp-info-row {
+      display: flex;
+      gap: 6px;
+      padding: 2px 0;
+      border-bottom: 1px solid rgba(148,163,184,0.08);
+      font-size: 11px;
+    }
+    .shp-info-key {
+      color: var(--muted);
+      white-space: nowrap;
+      min-width: 80px;
+      flex-shrink: 0;
+    }
+    .shp-info-val {
+      color: #e2e8f0;
+      word-break: break-all;
+    }
 
     /* ---- Popup styles ---- */
     .leaflet-popup-content { max-width: 340px; }
@@ -720,7 +787,7 @@
       <input type="file" id="shp-file-input" multiple accept=".shp,.dbf">
       <button id="shp-clear-btn">지우기</button>
     </div>
-    <div id="shp-status">SHP + DBF 파일을 함께 선택하세요 (WGS84 좌표계)</div>
+    <div id="shp-status">SHP + DBF 파일을 함께 선택하세요 (GCS_Tokyo 자동 변환)</div>
     <div id="shp-progress" hidden>
       <div class="shp-progress-wrap"><div class="shp-progress-fill" id="shp-progress-fill"></div></div>
       <div id="shp-progress-label"></div>
@@ -734,6 +801,14 @@
         <input type="checkbox" id="shp-node-toggle" checked>
         <span class="layer-dot" style="background:#f59e0b"></span>노드
       </label>
+    </div>
+    <button id="shp-link-select-btn" hidden>링크 선택 모드 OFF</button>
+    <div id="shp-link-info" hidden>
+      <div class="shp-info-header">
+        <span>선택된 링크 속성</span>
+        <button id="shp-link-info-close">✕</button>
+      </div>
+      <div id="shp-link-info-body"></div>
     </div>
   </div>
 

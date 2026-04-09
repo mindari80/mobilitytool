@@ -8,7 +8,7 @@
 import { extractLogs, formatTimestamp } from './extractor.js';
 import { initMap, renderLogs, toggleLayer, addCoordMarker, clearCoordMarkers, getMap, setMapCenter, setRulerMode, clearRuler } from './map-viewer.js';
 import { skCoordToWgs84 } from './coordinate.js';
-import { loadShpFiles, clearShpLayers, toggleShpLink, toggleShpNode } from './shp-layer.js';
+import { loadShpFiles, clearShpLayers, toggleShpLink, toggleShpNode, setLinkSelectMode } from './shp-layer.js';
 
 // ---- DOM refs ------------------------------------------------------------ //
 
@@ -50,13 +50,17 @@ const mapDiv           = document.getElementById('map');
 // SHP panel refs
 const shpFileInput     = document.getElementById('shp-file-input');
 const shpClearBtn      = document.getElementById('shp-clear-btn');
-const shpStatus        = document.getElementById('shp-status');
-const shpProgress      = document.getElementById('shp-progress');
-const shpProgressFill  = document.getElementById('shp-progress-fill');
-const shpProgressLabel = document.getElementById('shp-progress-label');
-const shpLayerToggles  = document.getElementById('shp-layer-toggles');
-const shpLinkToggle    = document.getElementById('shp-link-toggle');
-const shpNodeToggle    = document.getElementById('shp-node-toggle');
+const shpStatus         = document.getElementById('shp-status');
+const shpProgress       = document.getElementById('shp-progress');
+const shpProgressFill   = document.getElementById('shp-progress-fill');
+const shpProgressLabel  = document.getElementById('shp-progress-label');
+const shpLayerToggles   = document.getElementById('shp-layer-toggles');
+const shpLinkToggle     = document.getElementById('shp-link-toggle');
+const shpNodeToggle     = document.getElementById('shp-node-toggle');
+const shpLinkSelectBtn  = document.getElementById('shp-link-select-btn');
+const shpLinkInfo       = document.getElementById('shp-link-info');
+const shpLinkInfoBody   = document.getElementById('shp-link-info-body');
+const shpLinkInfoClose  = document.getElementById('shp-link-info-close');
 
 // ---- State --------------------------------------------------------------- //
 
@@ -243,6 +247,7 @@ shpFileInput.addEventListener('change', async () => {
     shpLinkToggle.parentElement.hidden = !hasLink;
     shpNodeToggle.parentElement.hidden = !hasNode;
     shpLayerToggles.hidden = !(hasLink || hasNode);
+    shpLinkSelectBtn.hidden = !hasLink;
 
   } catch (err) {
     shpStatus.textContent = `오류: ${err.message}`;
@@ -256,10 +261,50 @@ shpClearBtn.addEventListener('click', () => {
   clearShpLayers();
   shpStatus.textContent = '';
   shpLayerToggles.hidden = true;
+  shpLinkSelectBtn.hidden = true;
+  shpLinkSelectBtn.textContent = '링크 선택 모드 OFF';
+  shpLinkSelectBtn.classList.remove('active');
+  shpLinkInfo.hidden = true;
+  linkSelectOn = false;
 });
 
 shpLinkToggle.addEventListener('change', e => toggleShpLink(e.target.checked));
 shpNodeToggle.addEventListener('change', e => toggleShpNode(e.target.checked));
+
+// ---- Link selection mode ------------------------------------------------- //
+
+let linkSelectOn = false;
+
+shpLinkSelectBtn.addEventListener('click', () => {
+  linkSelectOn = !linkSelectOn;
+  shpLinkSelectBtn.textContent = linkSelectOn ? '링크 선택 모드 ON' : '링크 선택 모드 OFF';
+  shpLinkSelectBtn.classList.toggle('active', linkSelectOn);
+  setLinkSelectMode(linkSelectOn, linkSelectOn ? props => {
+    shpLinkInfoBody.innerHTML = buildInfoHtml(props);
+    shpLinkInfo.hidden = false;
+  } : null);
+  if (!linkSelectOn) shpLinkInfo.hidden = true;
+});
+
+shpLinkInfoClose.addEventListener('click', () => {
+  shpLinkInfo.hidden = true;
+  linkSelectOn = false;
+  shpLinkSelectBtn.textContent = '링크 선택 모드 OFF';
+  shpLinkSelectBtn.classList.remove('active');
+  setLinkSelectMode(false, null);
+});
+
+function buildInfoHtml(props) {
+  if (!props) return '<em style="color:#94a3b8;font-size:11px">속성 없음</em>';
+  const entries = Object.entries(props).filter(([, v]) => v !== null && v !== undefined && v !== '');
+  if (!entries.length) return '<em style="color:#94a3b8;font-size:11px">속성 없음</em>';
+  return entries.map(([k, v]) =>
+    `<div class="shp-info-row">
+      <span class="shp-info-key">${k}</span>
+      <span class="shp-info-val">${v}</span>
+    </div>`
+  ).join('');
+}
 
 // ---- Error popup --------------------------------------------------------- //
 
