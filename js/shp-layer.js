@@ -97,11 +97,19 @@ export function toggleShpNode(visible) {
 async function renderShpGroup(name, group) {
   const shpBuf = await group.shp.arrayBuffer();
   const dbfBuf = group.dbf ? await group.dbf.arrayBuffer() : null;
-  const src    = dbfBuf ? { shp: shpBuf, dbf: dbfBuf } : shpBuf;
 
-  // shpjs is loaded as window.shp via CDN script
-  const geojson  = await window.shp(src);
-  const features = geojson.features || [];
+  // shpjs v4 top-level shp() only handles ZIP files.
+  // Use parseShp / parseDbf to handle raw .shp/.dbf buffers directly.
+  const geometries = window.shp.parseShp(shpBuf);
+  const attributes = dbfBuf ? window.shp.parseDbf(dbfBuf) : [];
+
+  const features = geometries.map((geom, i) => ({
+    type: 'Feature',
+    geometry: geom,
+    properties: attributes[i] || {},
+  }));
+
+  const geojson = { type: 'FeatureCollection', features };
   if (!features.length) return { name, count: 0, type: 'empty' };
 
   const geomType = features[0]?.geometry?.type || '';
