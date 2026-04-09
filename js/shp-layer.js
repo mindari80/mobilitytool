@@ -2,8 +2,11 @@
  * SHP link/node layer loader and renderer.
  * Depends on shpjs loaded as a global script (window.shp).
  *
- * Heavy work (parse + coord transform + bbox) runs in shp-worker.js (Web Worker).
- * Rendering: viewport-based at zoom >= MIN_ZOOM.
+ * Strategy:
+ *  - Worker parses raw features + computes raw bbox (no coord transform).
+ *  - Main thread lazily transforms only viewport-visible features on demand.
+ *  - Transformed features are cached (wgs84 property on data entry).
+ *  - Rendering only at zoom >= MIN_ZOOM.
  */
 
 'use strict';
@@ -11,6 +14,60 @@
 import { getMap } from './map-viewer.js';
 
 const MIN_ZOOM = 17;
+
+// ---- On-demand coordinate transform: GCS_Tokyo → WGS84 ------------------ //
+// EPSG:1838 — Korea South (dx=-147, dy=506, dz=687.5)
+
+const BESSEL_a  = 6377397.155;
+const BESSEL_e2 = (() => { const f = 1/299.1528128;  return 2*f - f*f; })();
+const WGS84_a   = 6378137.0;
+const WGS84_e2  = (() => { const f = 1/298.257223563; return 2*f - f*f; })();
+const DX = -147.0, DY = 506.0, DZ = 687.5;
+
+function besselToWgs84(lon, lat) {
+  const φ = lat * Math.PI / 180, λ = lon * Math.PI / 180;
+  const sinφ = Math.sin(φ), cosφ = Math.cos(φ);
+  const N = BESSEL_a / Math.sqrt(1 - BESSEL_e2 * sinφ * sinφ);
+  const X2 = N * cosφ * Math.cos(λ) + DX;
+  const Y2 = N * cosφ * Math.sin(λ) + DY;
+  const Z2 = N * (1 - BESSEL_e2) * sinφ + DZ;
+  const λ2 = Math.atan2(Y2, X2);
+  const p  = Math.sqrt(X2*X2 + Y2*Y2);
+  let φ2 = Math.atan2(Z2, p * (1 - WGS84_e2));
+  for (let i = 0; i < 10; i++) {
+    const Nw = WGS84_a / Math.sqrt(1 - WGS84_e2 * Math.sin(φ2) ** 2);
+    φ2 = Math.atan2(Z2 + WGS84_e2 * Nw * Math.sin(φ2), p);
+  }
+  return [λ2 * 180 / Math.PI, φ2 * 180 / Math.PI];
+}
+
+function transformGeom(geom) {
+  if (!geom) return geom;
+  const tr = ([lng, lat]) => besselToWgs84(lng, lat);
+  switch (geom.type) {
+    case 'Point':           return { ...geom, coordinates: tr(geom.coordinates) };
+    case 'LineString':      return { ...geom, coordinates: geom.coordinates.map(tr) };
+    case 'MultiLineString': return { ...geom, coordinates: geom.coordinates.map(r => r.map(tr)) };
+    case 'MultiPoint':      return { ...geom, coordinates: geom.coordinates.map(tr) };
+    default:                return geom;
+  }
+}
+
+/**
+ * Lazily transform and cache a data entry.
+ * d = { rawFeature, rawBbox, wgs84: null }
+ * After first call: d.wgs84 = { type:'Feature', geometry:<WGS84>, properties }
+ */
+function ensureWgs84(d) {
+  if (!d.wgs84) {
+    d.wgs84 = {
+      type: 'Feature',
+      geometry: transformGeom(d.rawFeature.geometry),
+      properties: d.rawFeature.properties,
+    };
+  }
+  return d.wgs84;
+}
 
 // ---- Layer state --------------------------------------------------------- //
 
@@ -20,7 +77,8 @@ let activePopup      = null;
 let clickListenerMap = null;
 let moveListenerMap  = null;
 
-let allLinkData = [];  // { feature, bbox: [w,s,e,n] }[]
+// Data entries: { rawFeature, rawBbox, wgs84: null }
+let allLinkData = [];
 let allNodeData = [];
 
 let linkEnabled = true;
@@ -30,7 +88,7 @@ let nodeEnabled = true;
 
 let linkSelectMode  = false;
 let onLinkSelect    = null;
-let selectedFeature = null;
+let selectedFeature = null;   // wgs84 feature reference
 let selectedLayer   = null;
 
 export function setLinkSelectMode(active, onSelect) {
@@ -43,7 +101,7 @@ export function setLinkSelectMode(active, onSelect) {
   }
 }
 
-// ---- Bbox intersection --------------------------------------------------- //
+// ---- Bbox intersection (raw coords are close enough for filtering) ------- //
 
 function bboxIntersects([fw, fs, fe, fn], bounds) {
   return fe >= bounds.getWest()  && fw <= bounds.getEast() &&
@@ -54,15 +112,14 @@ function bboxIntersects([fw, fs, fe, fn], bounds) {
 
 function parseInWorker(shpBuf, dbfBuf, onProgress) {
   return new Promise((resolve, reject) => {
-    const workerUrl  = new URL('./shp-worker.js', import.meta.url);
-    const worker     = new Worker(workerUrl);
+    const workerUrl   = new URL('./shp-worker.js', import.meta.url);
+    const worker      = new Worker(workerUrl);
     const accumulated = [];
 
     worker.onmessage = ({ data }) => {
       if (data.type === 'progress') {
         if (onProgress) onProgress(data.pct, data.msg);
       } else if (data.type === 'chunk') {
-        // Accumulate features as they arrive from the worker
         for (let i = 0; i < data.data.length; i++) accumulated.push(data.data[i]);
         if (onProgress) onProgress(data.pct, data.msg);
       } else if (data.type === 'done') {
@@ -75,7 +132,6 @@ function parseInWorker(shpBuf, dbfBuf, onProgress) {
     };
     worker.onerror = e => { worker.terminate(); reject(new Error(e.message)); };
 
-    // Transfer ArrayBuffers (zero-copy) to worker
     const transfer = [shpBuf];
     if (dbfBuf) transfer.push(dbfBuf);
     worker.postMessage({ shpBuf, dbfBuf }, transfer);
@@ -95,16 +151,16 @@ function updateViewport() {
     linkLayer.clearLayers();
     if (show && linkEnabled && allLinkData.length) {
       allLinkData
-        .filter(d => bboxIntersects(d.bbox, bounds))
-        .forEach(d => linkLayer.addData(d.feature));
+        .filter(d => bboxIntersects(d.rawBbox, bounds))
+        .forEach(d => linkLayer.addData(ensureWgs84(d)));
     }
   }
   if (nodeLayer) {
     nodeLayer.clearLayers();
     if (show && nodeEnabled && allNodeData.length) {
       allNodeData
-        .filter(d => bboxIntersects(d.bbox, bounds))
-        .forEach(d => nodeLayer.addData(d.feature));
+        .filter(d => bboxIntersects(d.rawBbox, bounds))
+        .forEach(d => nodeLayer.addData(ensureWgs84(d)));
     }
   }
 }
@@ -200,17 +256,16 @@ export function toggleShpNode(visible) {
 async function renderShpGroup(name, group, onProgress) {
   const prog = (pct, msg) => { if (onProgress) onProgress(pct, msg); };
 
-  prog(5, '[1/4] 파일 읽는 중...');
+  prog(5, '[1/3] 파일 읽는 중...');
   const shpBuf = await group.shp.arrayBuffer();
   const dbfBuf = group.dbf ? await group.dbf.arrayBuffer() : null;
 
-  prog(15, '[2/4] 백그라운드 파싱 시작...');
-  // All heavy work (parse + coord transform + bbox) runs in Web Worker
+  prog(15, '[2/3] 백그라운드 파싱 시작...');
   const parsedData = await parseInWorker(shpBuf, dbfBuf, prog);
 
   if (!parsedData.length) { prog(100, '완료 (feature 없음)'); return { name, count: 0, type: 'empty' }; }
 
-  const geomType = parsedData[0]?.feature?.geometry?.type || '';
+  const geomType = parsedData[0]?.rawFeature?.geometry?.type || '';
   const isLine   = geomType === 'LineString' || geomType === 'MultiLineString';
   const map      = getMap();
 
@@ -223,7 +278,7 @@ async function renderShpGroup(name, group, onProgress) {
     linkLayer = L.geoJSON(null, {
       style: { color: '#22c55e', weight: 1.5, opacity: 0.8 },
       onEachFeature(feature, layer) {
-        // Restore highlight after viewport rebuild
+        // Restore highlight after viewport rebuild (feature is the cached wgs84 object)
         if (feature === selectedFeature) {
           selectedLayer = layer;
           layer.setStyle({ color: '#f59e0b', weight: 3, opacity: 1 });
