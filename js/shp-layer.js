@@ -36,12 +36,18 @@ let nodeEnabled = true;
 let pendingLinkAttrsCallback = null;
 let pendingNodeAttrsCallback = null;
 
-// ---- Link selection mode ------------------------------------------------- //
+// ---- Selection state ----------------------------------------------------- //
 
-let linkSelectMode = false;
-let onLinkSelect   = null;
-let selectedIndex  = -1;      // track by feature index (survives re-renders)
-let selectedLayer  = null;    // current Leaflet layer for the selected feature
+const SEL_LINK_STYLE = { color: '#ef4444', weight: 3, opacity: 1 };
+const SEL_NODE_STYLE = { color: '#ef4444', fillColor: '#ef4444', fillOpacity: 1, weight: 2, radius: 5 };
+const DEF_NODE_STYLE = { color: '#f59e0b', fillColor: '#f59e0b', fillOpacity: 0.8, weight: 1, radius: 3 };
+
+let linkSelectMode  = false;
+let onLinkSelect    = null;
+let selectedIndex   = -1;     // link: track by feature index (survives re-renders)
+let selectedLayer   = null;   // link: current Leaflet layer for the selected feature
+let selectedNodeIdx = -1;     // node: same
+let selectedNodeLyr = null;   // node: current Leaflet layer
 
 export function setLinkSelectMode(active, onSelect) {
   linkSelectMode = active;
@@ -140,6 +146,8 @@ export function clearShpLayers() {
   activePopup              = null;
   selectedIndex            = -1;
   selectedLayer            = null;
+  selectedNodeIdx          = -1;
+  selectedNodeLyr          = null;
   pendingLinkAttrsCallback = null;
   pendingNodeAttrsCallback = null;
 }
@@ -238,14 +246,14 @@ async function renderShpGroup(name, group, onProgress) {
         // Re-apply highlight if this is the selected feature
         if (idx === selectedIndex) {
           selectedLayer = layer;
-          layer.setStyle({ color: '#ef4444', weight: 3, opacity: 1 });
+          layer.setStyle(SEL_LINK_STYLE);
         }
 
         layer.on('click', e => {
           L.DomEvent.stopPropagation(e);
           if (linkSelectMode && onLinkSelect) {
             if (selectedLayer && linkLayer) { try { linkLayer.resetStyle(selectedLayer); } catch {} }
-            e.target.setStyle({ color: '#ef4444', weight: 3, opacity: 1 });
+            e.target.setStyle(SEL_LINK_STYLE);
             selectedLayer = e.target;
             selectedIndex = idx;
             // Request attrs on-demand
@@ -266,7 +274,7 @@ async function renderShpGroup(name, group, onProgress) {
         layer.on('mouseover', e => {
           if (idx !== selectedIndex) e.target.setStyle({ weight: 3, opacity: 1, color: '#4ade80' });
         });
-        layer.on('mouseout', e => {
+        layer.on('mouseout',  e => {
           if (idx !== selectedIndex && linkLayer) linkLayer.resetStyle(e.target);
         });
       },
@@ -297,9 +305,22 @@ async function renderShpGroup(name, group, onProgress) {
       }),
       onEachFeature(feature, layer) {
         const idx = feature._shpIndex;
+
+        // Re-apply highlight if this is the selected node
+        if (idx === selectedNodeIdx) {
+          selectedNodeLyr = layer;
+          layer.setStyle(SEL_NODE_STYLE);
+        }
+
         layer.on('click', e => {
           L.DomEvent.stopPropagation(e);
           if (activePopup) { try { map.closePopup(); } catch {} }
+          // Highlight selected node
+          if (selectedNodeLyr) { try { selectedNodeLyr.setStyle(DEF_NODE_STYLE); } catch {} }
+          e.target.setStyle(SEL_NODE_STYLE);
+          selectedNodeLyr = e.target;
+          selectedNodeIdx = idx;
+          // Request attrs on-demand
           const latlng = e.latlng;
           pendingNodeAttrsCallback = props => {
             activePopup = L.popup({ maxWidth: 320, closeButton: true, autoClose: false, closeOnClick: false })
