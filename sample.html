@@ -437,7 +437,7 @@
       text-decoration: line-through;
     }
 
-    /* ---- Bottom Navigation (iOS 18 Tab Bar) ---- */
+    /* ---- iOS 18 UITabBar ---- */
     .bottom-nav {
       position: fixed;
       bottom: 0;
@@ -445,39 +445,39 @@
       transform: translateX(-50%);
       width: 100%;
       max-width: 430px;
-      height: 83px;
-      background: rgba(255, 255, 255, 0.72);
+      height: 49px;
+      padding-bottom: env(safe-area-inset-bottom, 34px);
+      box-sizing: content-box;
+      background: rgba(249, 249, 249, 0.94);
       backdrop-filter: saturate(180%) blur(20px);
       -webkit-backdrop-filter: saturate(180%) blur(20px);
-      border-top: 0.5px solid rgba(0, 0, 0, 0.12);
+      border-top: 0.33px solid rgba(60, 60, 67, 0.29);
       display: flex;
-      align-items: flex-start;
+      align-items: stretch;
       justify-content: space-around;
-      padding: 6px 8px 0;
-      padding-bottom: env(safe-area-inset-bottom, 0);
       z-index: 200;
     }
 
     .bottom-nav-item {
+      flex: 1;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 2px;
+      justify-content: center;
+      gap: 1px;
       cursor: pointer;
       -webkit-tap-highlight-color: transparent;
-      padding: 4px 0;
-      min-width: 50px;
-      transition: opacity 0.1s;
+      padding: 4px 0 2px;
     }
 
     .bottom-nav-item:active {
-      opacity: 0.5;
+      opacity: 0.4;
     }
 
     .bottom-nav-icon {
       width: 28px;
       height: 28px;
-      color: var(--grey500);
+      color: #999;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -485,16 +485,24 @@
     }
 
     .bottom-nav-icon svg {
-      width: 25px;
-      height: 25px;
+      width: 24px;
+      height: 24px;
     }
+
+    /* inactive icon: outlined */
+    .bottom-nav-icon .icon-filled { display: none; }
+    .bottom-nav-icon .icon-outlined { display: block; }
+
+    /* active icon: filled */
+    .bottom-nav-item.active .bottom-nav-icon .icon-filled { display: block; }
+    .bottom-nav-item.active .bottom-nav-icon .icon-outlined { display: none; }
 
     .bottom-nav-label {
       font-size: 10px;
       line-height: 12px;
-      color: var(--grey500);
+      color: #999;
       font-weight: 500;
-      letter-spacing: 0;
+      text-align: center;
     }
 
     .bottom-nav-item.active .bottom-nav-icon {
@@ -506,15 +514,34 @@
       font-weight: 600;
     }
 
-    .noti-badge {
+    .tab-badge {
       position: absolute;
-      top: -2px;
-      right: -4px;
-      width: 8px;
-      height: 8px;
+      top: -1px;
+      right: -6px;
+      min-width: 16px;
+      height: 16px;
+      padding: 0 4px;
+      background: var(--red500);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 600;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+      border: 2px solid rgba(249, 249, 249, 0.94);
+    }
+
+    .tab-dot {
+      position: absolute;
+      top: 0px;
+      right: -2px;
+      width: 7px;
+      height: 7px;
       background: var(--red500);
       border-radius: 50%;
-      border: 1.5px solid #fff;
+      border: 1.5px solid rgba(249, 249, 249, 0.94);
     }
   </style>
 </head>
@@ -747,57 +774,46 @@
     </div>
   </section>
 
-  <!-- Bottom Navigation (iOS 18 Tab Bar) -->
+  <!-- iOS 18 UITabBar -->
   <nav class="bottom-nav">
-    <!-- 홈 (house.fill when active) -->
-    <div class="bottom-nav-item active">
+    <!-- 홈 -->
+    <div class="bottom-nav-item active" data-tab="home">
       <div class="bottom-nav-icon">
-        <svg viewBox="0 0 24 24" fill="currentColor" stroke="none">
-          <path d="M12 3l-9 8h2.5v8.5c0 .28.22.5.5.5h4v-5.5c0-.28.22-.5.5-.5h3c.28 0 .5.22.5.5V20h4c.28 0 .5-.22.5-.5V11H21L12 3z"/>
-        </svg>
+        <svg class="icon-filled" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.1L1 12h3v9a1 1 0 001 1h5v-6h4v6h5a1 1 0 001-1v-9h3L12 2.1z"/></svg>
+        <svg class="icon-outlined" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l9-9 9 9"/><path d="M5 10v10a1 1 0 001 1h4v-6h4v6h4a1 1 0 001-1V10"/></svg>
       </div>
       <div class="bottom-nav-label">홈</div>
     </div>
-    <!-- 카테고리 (square.grid.2x2) -->
-    <div class="bottom-nav-item">
+    <!-- 카테고리 -->
+    <div class="bottom-nav-item" data-tab="category">
       <div class="bottom-nav-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="3" width="7.5" height="7.5" rx="1.8"/>
-          <rect x="13.5" y="3" width="7.5" height="7.5" rx="1.8"/>
-          <rect x="3" y="13.5" width="7.5" height="7.5" rx="1.8"/>
-          <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.8"/>
-        </svg>
+        <svg class="icon-filled" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>
+        <svg class="icon-outlined" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>
       </div>
       <div class="bottom-nav-label">카테고리</div>
     </div>
-    <!-- 검색 (magnifyingglass) -->
-    <div class="bottom-nav-item">
+    <!-- 검색 -->
+    <div class="bottom-nav-item" data-tab="search">
       <div class="bottom-nav-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="10.5" cy="10.5" r="6.5"/>
-          <line x1="21" y1="21" x2="15.5" y2="15.5"/>
-        </svg>
+        <svg class="icon-filled" viewBox="0 0 24 24" fill="currentColor"><path d="M10.5 2a8.5 8.5 0 015.7 14.8l4.9 4.9a1.2 1.2 0 01-1.7 1.7l-4.9-4.9A8.5 8.5 0 1110.5 2zm0 2.4a6.1 6.1 0 100 12.2 6.1 6.1 0 000-12.2z"/></svg>
+        <svg class="icon-outlined" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><line x1="21" y1="21" x2="15.5" y2="15.5"/></svg>
       </div>
       <div class="bottom-nav-label">검색</div>
     </div>
-    <!-- 찜 (heart) -->
-    <div class="bottom-nav-item">
+    <!-- 찜 -->
+    <div class="bottom-nav-item" data-tab="wish">
       <div class="bottom-nav-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-        </svg>
-        <span class="noti-badge"></span>
+        <svg class="icon-filled" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+        <svg class="icon-outlined" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+        <span class="tab-dot"></span>
       </div>
       <div class="bottom-nav-label">찜</div>
     </div>
-    <!-- 마이 (person.crop.circle) -->
-    <div class="bottom-nav-item">
+    <!-- 마이 -->
+    <div class="bottom-nav-item" data-tab="my">
       <div class="bottom-nav-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"/>
-          <circle cx="12" cy="9" r="3.5"/>
-          <path d="M5.5 19.5c.8-2.7 3.4-4.5 6.5-4.5s5.7 1.8 6.5 4.5"/>
-        </svg>
+        <svg class="icon-filled" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 00-7.35 16.76A10 10 0 0012 22a10 10 0 007.35-3.24A10 10 0 0012 2zm0 3a3.5 3.5 0 110 7 3.5 3.5 0 010-7zm0 14.5a7.5 7.5 0 01-5.94-2.93C7.61 14.53 9.69 13.5 12 13.5s4.39 1.03 5.94 3.07A7.5 7.5 0 0112 19.5z"/></svg>
+        <svg class="icon-outlined" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="9" r="3.5"/><path d="M5.5 19.5c.8-2.7 3.4-4.5 6.5-4.5s5.7 1.8 6.5 4.5"/></svg>
       </div>
       <div class="bottom-nav-label">마이</div>
     </div>
@@ -876,7 +892,7 @@
     });
   });
 
-  // Bottom nav click
+  // iOS Tab Bar click (filled/outlined toggle)
   document.querySelectorAll('.bottom-nav-item').forEach(item => {
     item.addEventListener('click', () => {
       document.querySelectorAll('.bottom-nav-item').forEach(i => i.classList.remove('active'));
