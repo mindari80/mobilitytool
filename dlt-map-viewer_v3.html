@@ -1235,11 +1235,11 @@ function nowReqTime() {
 }
 
 const DEFAULT_HEADERS = [
-  ['Accept', 'application/json'],
+  ['Accept', 'application/octet-stream'],
   ['CIH', '582079726'],
   ['Client_ReqTime', () => nowReqTime()],
   ['Connection', 'close'],
-  ['Content-Type', 'application/json'],
+  ['Content-Type', 'application/json; charset=UTF-8'],
   ['Network-Type', 'WIFI'],
   ['Nonce', '858416984'],
   ['Requester', 'CLIENT_SSL'],
