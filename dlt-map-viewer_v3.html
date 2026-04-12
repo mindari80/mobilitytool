@@ -1555,21 +1555,61 @@ tvasSendBtn.addEventListener('click', async () => {
       }
 
     } else {
-      // Binary response — raw TVAS data directly
+      // Binary response — parse wrapper then extract TVAS
       lastBinaryResponse = rawBuf;
       lastResponseJson = null;
       tvasSaveRespBtn.style.display = '';
 
+      const dv = new DataView(rawBuf);
+      const dec = new TextDecoder('ascii');
+
+      // Parse binary response wrapper
+      const errCode    = dec.decode(rawBytes.slice(0, 6));
+      const errMsg     = dec.decode(rawBytes.slice(6, 106)).replace(/\0+$/g, '');
+      const detailCode = dec.decode(rawBytes.slice(106, 116)).replace(/\0+$/g, '');
+      const detailMsg  = dec.decode(rawBytes.slice(116, 216)).replace(/\0+$/g, '');
+      const sessionId  = dec.decode(rawBytes.slice(216, 240)).replace(/\0+$/g, '');
+      const routeCount = rawBytes[240];
+
+      // tvasSize[] — big-endian int32 × routeCount
+      const tvasSizes = [];
+      for (let i = 0; i < routeCount; i++) {
+        tvasSizes.push(dv.getInt32(241 + i * 4, false)); // big-endian
+      }
+      const tvasStart = 241 + routeCount * 4;
+
+      respInfo = {
+        sessionId, errorCode: errCode, errorMessage: errMsg,
+        errorDetailCode: detailCode, errorDetailMessage: detailMsg,
+        routeCount, tvasSize: tvasSizes,
+      };
+
+      // Show wrapper info
       tvasRespRaw.style.display = '';
-      const hexPreview = Array.from(rawBytes.slice(0, 64))
-        .map(b => b.toString(16).padStart(2, '0')).join(' ');
       tvasRespPre.textContent =
         `[바이너리 응답] ${rawBuf.byteLength} bytes\n` +
-        `처음 64 bytes:\n${hexPreview}`;
+        `errorCode: ${errCode}\n` +
+        `errorMessage: ${errMsg}\n` +
+        `sessionId: ${sessionId}\n` +
+        `routeCount: ${routeCount}\n` +
+        `tvasSize: [${tvasSizes.join(', ')}]\n` +
+        `TVAS offset: ${tvasStart}`;
 
-      tvasBuffer = rawBuf;
-      respInfo = { sessionId: '-', routeCount: '?', tvasSize: [rawBuf.byteLength] };
-      setStatus(`바이너리 응답 수신: ${rawBuf.byteLength} bytes (${elapsed}ms)`);
+      if (errCode !== '000000') {
+        setStatus(`서버 오류: ${errMsg || errCode} (${elapsed}ms)`, 'error');
+        tvasSendBtn.disabled = false;
+        return;
+      }
+
+      if (routeCount === 0 || tvasSizes[0] === 0) {
+        setStatus('경로 데이터가 없습니다 (routeCount=0).', 'error');
+        tvasSendBtn.disabled = false;
+        return;
+      }
+
+      // Extract first TVAS
+      tvasBuffer = rawBuf.slice(tvasStart, tvasStart + tvasSizes[0]);
+      setStatus(`바이너리 응답 파싱: ${rawBuf.byteLength} bytes, TVAS ${tvasSizes[0]} bytes (${elapsed}ms)`);
     }
 
     setStatus(`TVAS 파싱 중... (${tvasBuffer.byteLength} bytes)`);
