@@ -2173,6 +2173,101 @@ function buildSummaryHtml(s, elapsed, tvasResult, coords, respInfo) {
     html += sectionDetail('시도경계', 'CB', tvasResult.cityBoundary.length, rows);
   }
 
+  // ---- ES3: 전기차 충전소 ---- //
+  if (tvasResult.evChargers && tvasResult.evChargers.length > 0) {
+    const speedName = (s) => ({0:'정보없음',1:'완속',2:'급속',3:'초급속'}[s] || s);
+    const rows = tvasResult.evChargers.map((ev, i) => {
+      let sockets = [];
+      if (ev.dcCha) sockets.push('DC차데모');
+      if (ev.ac3) sockets.push('AC3상');
+      if (ev.dcCombo) sockets.push('DC콤보');
+      if (ev.slow) sockets.push('완속');
+      if (ev.tesla) sockets.push('테슬라');
+      return `<div style="padding:3px 0;border-bottom:1px solid rgba(148,163,184,0.08)">
+        [${i}] ${vx(ev.vxIdx, coords)} <b>"${esc(ev.name)}"</b><br>
+        <span style="color:var(--muted)">POI:${ev.poiId} | ${ev.onRoute===0?'경로상':'경로주변'} | ${ev.mustCharge?'<span style="color:#f87171">필수충전</span>':'일반'}</span><br>
+        <span style="color:var(--muted)">소켓: ${sockets.join(', ') || '-'} | 충전기: ${ev.availChargers}/${ev.totalChargers} | 속도: ${speedName(ev.chargeSpeed)}</span>
+        ${ev.chargeTime ? '<br><span style="color:var(--muted)">충전시간: '+(ev.chargeTime)+'초 | 파워: '+ev.chargePower+'kW | 도착SoC: '+ev.arrivalSoc+'% → '+ev.expectedSoc+'%</span>' : ''}
+        ${ev.manualStation ? '<br><span style="color:#fbbf24">수동충전소</span>' : ''}
+      </div>`;
+    }).join('');
+    html += sectionDetail('전기차 충전소', 'ES3', tvasResult.evChargers.length, rows);
+  }
+
+  // ---- LT2: TSD링크교통정보 ---- //
+  if (tvasResult.trafficInfo && tvasResult.trafficInfo.length > 0) {
+    const congName = (c) => ({1:'원활',2:'서행',3:'지체',4:'정체'}[c] || c);
+    const rows = tvasResult.trafficInfo.map((lt, i) =>
+      `<div style="padding:2px 0;border-bottom:1px solid rgba(148,163,184,0.08)">
+        [${i}] ${vxRange(lt.startVxIdx, lt.endVxIdx, coords)} 속도:${lt.speed}km/h 혼잡:${congName(lt.congestion)}
+      </div>`
+    ).join('');
+    html += sectionDetail('교통정보', 'LT2', tvasResult.trafficInfo.length, rows);
+  }
+
+  // ---- WP2: 경유지 ---- //
+  if (tvasResult.waypoints && tvasResult.waypoints.length > 0) {
+    const rows = tvasResult.waypoints.map((wp, i) =>
+      `<div style="padding:2px 0;border-bottom:1px solid rgba(148,163,184,0.08)">
+        [${i}] ${vx(wp.vxIdx, coords)} 타입:${wp.type} SK(${wp.x},${wp.y}) POI:${wp.poiId}
+      </div>`
+    ).join('');
+    html += sectionDetail('경유지', 'WP2', tvasResult.waypoints.length, rows);
+  }
+
+  // ---- RD5: RPLINK ---- //
+  if (tvasResult.rpLinks && tvasResult.rpLinks.length > 0) {
+    const rows = tvasResult.rpLinks.map((rd, i) =>
+      `<div style="padding:2px 0;border-bottom:1px solid rgba(148,163,184,0.08)">
+        [${i}] ${vx(rd.vxIdx, coords)} linkId:${rd.linkId} mesh:${rd.meshCode}
+      </div>`
+    ).join('');
+    html += sectionDetail('RPLINK', 'RD5', tvasResult.rpLinks.length, rows);
+  }
+
+  // ---- TC: 정체구간 ---- //
+  if (tvasResult.congestion && tvasResult.congestion.length > 0) {
+    const rows = tvasResult.congestion.map((tc, i) =>
+      `<div style="padding:2px 0;border-bottom:1px solid rgba(148,163,184,0.08)">
+        [${i}] ${vxRange(tc.startVxIdx, tc.endVxIdx, coords)} ${tc.distance}m ${tc.time}초
+      </div>`
+    ).join('');
+    html += sectionDetail('정체구간', 'TC', tvasResult.congestion.length, rows);
+  }
+
+  // ---- UA: 돌발정보 ---- //
+  if (tvasResult.incidents && tvasResult.incidents.length > 0) {
+    const typeName = (t) => ({A:'사고',B:'공사',C:'행사',D:'재해',E:'통제'}[t] || t);
+    const rows = tvasResult.incidents.map((ua, i) =>
+      `<div style="padding:2px 0;border-bottom:1px solid rgba(148,163,184,0.08)">
+        [${i}] ${vx(ua.startVxIdx, coords)} ${typeName(ua.typeCode)} "${esc(ua.content)}"
+      </div>`
+    ).join('');
+    html += sectionDetail('돌발정보', 'UA', tvasResult.incidents.length, rows);
+  }
+
+  // ---- WHR/HTR/WTR: 화물차 제한 ---- //
+  const truckSections = [
+    ['화물차 폭 제한', 'WHR', tvasResult.truckWidth, 'cm'],
+    ['화물차 높이 제한', 'HTR', tvasResult.truckHeight, 'cm'],
+    ['화물차 중량 제한', 'WTR', tvasResult.truckWeight, 'kg'],
+  ];
+  for (const [title, id, data, unit] of truckSections) {
+    if (data && data.length > 0) {
+      const rows = data.map((tr, i) =>
+        `<div style="padding:2px 0;border-bottom:1px solid rgba(148,163,184,0.08)">
+          [${i}] ${vxRange(tr.startVxIdx, tr.endVxIdx, coords)} 제한:${tr.limit}${unit} ${tr.overFlag?'<span style="color:#f87171">초과</span>':''}
+        </div>`
+      ).join('');
+      html += sectionDetail(title, id, data.length, rows);
+    }
+  }
+
+  // ---- RS7: 경로요약 ---- //
+  if (tvasResult.routeSummary) {
+    html += sectionDetail('경로요약', 'RS7', 1, '<span style="color:var(--muted)">데이터 크기: ' + tvasResult.routeSummary.size + ' bytes</span>');
+  }
+
   return html;
 }
 </script>

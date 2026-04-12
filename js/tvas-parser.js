@@ -408,6 +408,178 @@ const LANE_ANGLE_ARROWS = {
 
 export { LANE_ANGLE_NAMES, LANE_ANGLE_ARROWS };
 
+function parseEvChargers(dv, offset, size, charset) {
+  // ES3 header: 28 bytes
+  const count       = dv.getUint16(offset, true);
+  const nameSize    = dv.getInt32(offset + 8, true);
+  const typeNameSize = dv.getInt32(offset + 12, true);
+  const opNameSize  = dv.getInt32(offset + 16, true);
+  const dataStart = offset + 28;
+  const chargers = [];
+  for (let i = 0; i < count; i++) {
+    const base = dataStart + i * 44;
+    if (base + 44 > offset + size) break;
+    const vxIdx      = dv.getUint16(base, true);
+    const poiId      = dv.getInt32(base + 2, true);
+    const roadType   = dv.getUint8(base + 6);
+    const locX       = dv.getInt32(base + 7, true);
+    const locY       = dv.getInt32(base + 11, true);
+    const nameOffset = dv.getInt32(base + 15, true);
+    const onRoute    = dv.getUint8(base + 19);
+    const dcCha      = dv.getUint8(base + 20);
+    const ac3        = dv.getUint8(base + 21);
+    const dcCombo    = dv.getUint8(base + 22);
+    const slow       = dv.getUint8(base + 23);
+    const tesla      = dv.getUint8(base + 24);
+    const stationType = dv.getUint8(base + 25);
+    const mustCharge  = dv.getUint8(base + 26);
+    const isSelf     = dv.getUint8(base + 27);
+    const fastType   = dv.getUint8(base + 28);
+    const typeNameOff = dv.getInt32(base + 29, true);
+    const totalChargers = dv.getUint8(base + 33);
+    const availChargers = dv.getUint8(base + 34);
+    const chargeSpeed   = dv.getUint8(base + 35);
+    const opCount    = dv.getUint8(base + 36);
+    const chargeTime = dv.getUint16(base + 37, true);
+    const chargePower = dv.getUint16(base + 39, true);
+    const arrivalSoc  = dv.getUint8(base + 41);
+    const expectedSoc = dv.getUint8(base + 42);
+    const manualStation = dv.getUint8(base + 43);
+
+    // Read name from blob
+    const blobStart = dataStart + count * 44;
+    let name = '';
+    if (nameOffset >= 0 && blobStart + nameOffset < offset + size) {
+      name = readString(dv, blobStart + nameOffset, Math.min(200, offset + size - blobStart - nameOffset), charset);
+    }
+
+    chargers.push({
+      vxIdx, poiId, roadType, locX, locY, name, onRoute,
+      dcCha, ac3, dcCombo, slow, tesla, stationType, mustCharge, isSelf, fastType,
+      totalChargers, availChargers, chargeSpeed, opCount,
+      chargeTime, chargePower, arrivalSoc, expectedSoc, manualStation,
+    });
+  }
+  return chargers;
+}
+
+function parseTrafficInfo(dv, offset, size) {
+  // LT2: TSD링크교통정보
+  const count = dv.getUint16(offset, true);
+  const dataStart = offset + 8;
+  const items = [];
+  for (let i = 0; i < count; i++) {
+    const base = dataStart + i * 8;
+    if (base + 8 > offset + size) break;
+    items.push({
+      startVxIdx: dv.getUint16(base, true),
+      endVxIdx:   dv.getUint16(base + 2, true),
+      speed:      dv.getUint8(base + 4),
+      congestion: dv.getUint8(base + 5),
+    });
+  }
+  return items;
+}
+
+function parseWaypoints(dv, offset, size, charset) {
+  // WP2: 경유지 지점정보
+  const count = dv.getUint16(offset, true);
+  const dataStart = offset + 8;
+  const items = [];
+  for (let i = 0; i < count; i++) {
+    const base = dataStart + i * 16;
+    if (base + 16 > offset + size) break;
+    items.push({
+      vxIdx: dv.getUint16(base, true),
+      type:  dv.getUint8(base + 2),
+      x:     dv.getInt32(base + 4, true),
+      y:     dv.getInt32(base + 8, true),
+      poiId: dv.getInt32(base + 12, true),
+    });
+  }
+  return items;
+}
+
+function parseRpLinks(dv, offset, size) {
+  // RD5: RPLINK 정보
+  const count = dv.getUint16(offset, true);
+  const dataStart = offset + 8;
+  const items = [];
+  for (let i = 0; i < count; i++) {
+    const base = dataStart + i * 20;
+    if (base + 20 > offset + size) break;
+    items.push({
+      vxIdx:  dv.getUint16(base, true),
+      linkId: dv.getInt32(base + 4, true),
+      meshCode: dv.getInt32(base + 8, true),
+    });
+  }
+  return items;
+}
+
+function parseCongestion(dv, offset, size) {
+  // TC: 정체구간정보
+  const count = dv.getUint16(offset, true);
+  const dataStart = offset + 8;
+  const items = [];
+  for (let i = 0; i < count; i++) {
+    const base = dataStart + i * 20;
+    if (base + 20 > offset + size) break;
+    items.push({
+      startVxIdx: dv.getUint16(base, true),
+      endVxIdx:   dv.getUint16(base + 2, true),
+      distance:   dv.getUint16(base + 4, true),
+      time:       dv.getUint16(base + 6, true),
+    });
+  }
+  return items;
+}
+
+function parseIncidents(dv, offset, size, charset) {
+  // UA: 돌발정보
+  const count    = dv.getUint16(offset, true);
+  const blobSize = dv.getInt32(offset + 8, true);
+  const dataStart = offset + 12;
+  const blobStart = dataStart + count * 8;
+  const items = [];
+  for (let i = 0; i < count; i++) {
+    const base = dataStart + i * 8;
+    if (base + 8 > offset + size) break;
+    const startVxIdx = dv.getUint16(base, true);
+    const contentOff = dv.getUint16(base + 2, true);
+    const typeCode   = String.fromCharCode(dv.getUint8(base + 4));
+    let content = '';
+    if (blobStart + contentOff < offset + size) {
+      content = readString(dv, blobStart + contentOff, Math.min(200, offset + size - blobStart - contentOff), charset);
+    }
+    items.push({ startVxIdx, typeCode, content });
+  }
+  return items;
+}
+
+function parseRouteSummary(dv, offset, size, charset) {
+  // RS7: 경로요약정보 - 간략 파싱
+  return { raw: true, offset, size };
+}
+
+function parseTruckRestriction(dv, offset, size, type) {
+  // WHR/HTR/WTR: 화물차 제한구간
+  const count = dv.getUint16(offset, true);
+  const dataStart = offset + 8;
+  const items = [];
+  for (let i = 0; i < count; i++) {
+    const base = dataStart + i * 12;
+    if (base + 12 > offset + size) break;
+    items.push({
+      startVxIdx: dv.getUint16(base, true),
+      endVxIdx:   dv.getUint16(base + 2, true),
+      overFlag:   dv.getUint8(base + 4),
+      limit:      type === 'WTR' ? dv.getInt32(base + 5, true) : dv.getUint16(base + 5, true),
+    });
+  }
+  return items;
+}
+
 function parseCityBoundary(dv, offset, size, charset) {
   const count = dv.getUint16(offset, true);
   const dataStart = offset + 8;
@@ -442,6 +614,16 @@ export function parseTvas(arrayBuffer) {
     tollGates: null,
     restAreas: null,
     laneGuidance: null,
+    evChargers: null,
+    trafficInfo: null,
+    waypoints: null,
+    rpLinks: null,
+    congestion: null,
+    incidents: null,
+    routeSummary: null,
+    truckWidth: null,
+    truckHeight: null,
+    truckWeight: null,
     forcedReroute: null,
     highwayMode: null,
     cityBoundary: null,
@@ -494,6 +676,36 @@ export function parseTvas(arrayBuffer) {
         break;
       case 'CB':
         result.cityBoundary = parseCityBoundary(dv, absOffset, idx.size, charset);
+        break;
+      case 'ES3': case 'ES2':
+        result.evChargers = parseEvChargers(dv, absOffset, idx.size, charset);
+        break;
+      case 'LT2':
+        result.trafficInfo = parseTrafficInfo(dv, absOffset, idx.size);
+        break;
+      case 'WP2':
+        result.waypoints = parseWaypoints(dv, absOffset, idx.size, charset);
+        break;
+      case 'RD5':
+        result.rpLinks = parseRpLinks(dv, absOffset, idx.size);
+        break;
+      case 'TC':
+        result.congestion = parseCongestion(dv, absOffset, idx.size);
+        break;
+      case 'UA':
+        result.incidents = parseIncidents(dv, absOffset, idx.size, charset);
+        break;
+      case 'RS7':
+        result.routeSummary = parseRouteSummary(dv, absOffset, idx.size, charset);
+        break;
+      case 'WHR':
+        result.truckWidth = parseTruckRestriction(dv, absOffset, idx.size, 'WHR');
+        break;
+      case 'HTR':
+        result.truckHeight = parseTruckRestriction(dv, absOffset, idx.size, 'HTR');
+        break;
+      case 'WTR':
+        result.truckWeight = parseTruckRestriction(dv, absOffset, idx.size, 'WTR');
         break;
     }
   }
