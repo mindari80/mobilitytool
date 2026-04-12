@@ -1685,6 +1685,17 @@ function sectionDetail(title, id, count, contentHtml) {
   </details>`;
 }
 
+function vx(idx, coords) {
+  const c = coords[idx];
+  return c ? `VX${idx}(${c.lat.toFixed(5)},${c.lon.toFixed(5)})` : `VX${idx}`;
+}
+function vxRange(start, end, coords) {
+  const s = coords[start], e = coords[Math.min(end, coords.length-1)];
+  const sp = s ? `(${s.lat.toFixed(5)},${s.lon.toFixed(5)})` : '';
+  const ep = e ? `(${e.lat.toFixed(5)},${e.lon.toFixed(5)})` : '';
+  return `VX${start}${sp}~VX${end}${ep}`;
+}
+
 function buildSummaryHtml(s, elapsed, tvasResult, coords, respInfo) {
   const fmt = s.formatDistFn, fmtT = s.formatTimeFn;
 
@@ -1740,7 +1751,7 @@ function buildSummaryHtml(s, elapsed, tvasResult, coords, respInfo) {
     const fcName = (c) => ({0:'일반',1:'교량',2:'터널',3:'고가',4:'지하도로',5:'교차로통과',6:'철도건널목',7:'댐/방파제',90:'한강교량'}[c] || c);
     const rows = tvasResult.roads.map((r, i) =>
       `<div style="padding:2px 0;border-bottom:1px solid rgba(148,163,184,0.08)">
-        [${i}] VX~${r.lastVxIdx} | ${rtName(r.roadType)} | 링크:${ltName(r.linkType)} | 시설:${fcName(r.facilityCode)} | ${r.roadLength}m | ${r.laneCount}차선 | ${r.speedLimit}km/h | ${r.energyConsumption}Wh
+        [${i}] ~${vx(r.lastVxIdx, coords)} | ${rtName(r.roadType)} | 링크:${ltName(r.linkType)} | 시설:${fcName(r.facilityCode)} | ${r.roadLength}m | ${r.laneCount}차선 | ${r.speedLimit}km/h | ${r.energyConsumption}Wh
       </div>`
     ).join('');
     html += sectionDetail('도로 정보', 'RO4', tvasResult.roads.length, rows);
@@ -1753,7 +1764,7 @@ function buildSummaryHtml(s, elapsed, tvasResult, coords, respInfo) {
       const c = coords[gp.vxIndex];
       const pos = c ? `(${c.lat.toFixed(6)}, ${c.lon.toFixed(6)})` : '';
       return `<div style="padding:2px 0;border-bottom:1px solid rgba(148,163,184,0.08)">
-        [${i}] VX${gp.vxIndex} ${gpName(gp.guidanceCode)} ${pos} ${gp.continuousTurnCode > 0 ? '연속:' + (gp.continuousTurnCode===1?'고속':'일반') : ''}
+        [${i}] ${vx(gp.vxIndex, coords)} ${gpName(gp.guidanceCode)} ${gp.continuousTurnCode > 0 ? '연속:' + (gp.continuousTurnCode===1?'고속':'일반') : ''}
       </div>`;
     }).join('');
     html += sectionDetail('안내점', 'GP', tvasResult.guidancePoints.length, rows);
@@ -1764,7 +1775,7 @@ function buildSummaryHtml(s, elapsed, tvasResult, coords, respInfo) {
     const drType = (t) => ({1:'강제재탐색',2:'경유지점',3:'교통정보수집',4:'갈림길대안',5:'정체회피대안',6:'목적지방향성'}[t] || t);
     const rows = tvasResult.forcedReroute.map((d, i) =>
       `<div style="padding:2px 0;border-bottom:1px solid rgba(148,163,184,0.08)">
-        [${i}] VX${d.vxIdx} ${drType(d.type)} 전방${d.distance}m RID:${d.rid}
+        [${i}] ${vx(d.vxIdx, coords)} ${drType(d.type)} 전방${d.distance}m RID:${d.rid}
       </div>`
     ).join('');
     html += sectionDetail('강제재탐색', 'DRG3', tvasResult.forcedReroute.length, rows);
@@ -1774,7 +1785,7 @@ function buildSummaryHtml(s, elapsed, tvasResult, coords, respInfo) {
   if (tvasResult.roadNames && tvasResult.roadNames.length > 0) {
     const rows = tvasResult.roadNames.map((rn, i) =>
       `<div style="padding:2px 0;border-bottom:1px solid rgba(148,163,184,0.08)">
-        [${i}] VX~${rn.lastVxIdx} "${esc(rn.name)}" ${rn.display ? '표출' : '미표출'}
+        [${i}] ~${vx(rn.lastVxIdx, coords)} "${esc(rn.name)}" ${rn.display ? '표출' : '미표출'}
       </div>`
     ).join('');
     html += sectionDetail('도로명칭', 'RN2', tvasResult.roadNames.length, rows);
@@ -1785,7 +1796,7 @@ function buildSummaryHtml(s, elapsed, tvasResult, coords, respInfo) {
     const dnType = (t) => ({1:'교차로명칭',2:'방면명칭',3:'서버가공',4:'목적지명칭'}[t] || t);
     const rows = tvasResult.directionNames.map((dn, i) =>
       `<div style="padding:2px 0;border-bottom:1px solid rgba(148,163,184,0.08)">
-        [${i}] VX~${dn.lastVxIdx} ${dnType(dn.typeCode)} "${esc(dn.name)}"
+        [${i}] ~${vx(dn.lastVxIdx, coords)} ${dnType(dn.typeCode)} "${esc(dn.name)}"
       </div>`
     ).join('');
     html += sectionDetail('방면명칭', 'DN5', tvasResult.directionNames.length, rows);
@@ -1795,7 +1806,7 @@ function buildSummaryHtml(s, elapsed, tvasResult, coords, respInfo) {
   if (tvasResult.intersectionNames && tvasResult.intersectionNames.length > 0) {
     const rows = tvasResult.intersectionNames.map((cn, i) =>
       `<div style="padding:2px 0;border-bottom:1px solid rgba(148,163,184,0.08)">
-        [${i}] VX~${cn.lastVxIdx} "${esc(cn.name)}"
+        [${i}] ~${vx(cn.lastVxIdx, coords)} "${esc(cn.name)}"
       </div>`
     ).join('');
     html += sectionDetail('교차로명칭', 'CN', tvasResult.intersectionNames.length, rows);
@@ -1808,7 +1819,7 @@ function buildSummaryHtml(s, elapsed, tvasResult, coords, respInfo) {
       const c = coords[da.startVxIdx];
       const pos = c ? `(${c.lat.toFixed(5)}, ${c.lon.toFixed(5)})` : '';
       return `<div style="padding:2px 0;border-bottom:1px solid rgba(148,163,184,0.08)">
-        [${i}] VX${da.startVxIdx}~${da.endVxIdx} ${daType(da.type)} ${da.speedLimit}km/h ${da.sectionLength > 0 ? da.sectionLength+'m' : ''} ${da.variableSpeed ? '가변' : ''} ${da.schoolZoneCamera ? '스쿨존카메라' : ''} ${pos}
+        [${i}] ${vxRange(da.startVxIdx, da.endVxIdx, coords)} ${daType(da.type)} ${da.speedLimit}km/h ${da.sectionLength > 0 ? da.sectionLength+'m' : ''} ${da.variableSpeed ? '가변' : ''} ${da.schoolZoneCamera ? '스쿨존카메라' : ''}
       </div>`;
     }).join('');
     html += sectionDetail('위험지역', 'DA5', tvasResult.dangerAreas.length, rows);
@@ -1820,7 +1831,7 @@ function buildSummaryHtml(s, elapsed, tvasResult, coords, respInfo) {
     const congLabel = (c) => ({'1':'원활','2':'서행','4':'정체','0':'정보없음'}[c] || c);
     const rows = tvasResult.tollGates.map((tg, i) =>
       `<div style="padding:2px 0;border-bottom:1px solid rgba(148,163,184,0.08)">
-        [${i}] VX${tg.vxIdx} "${esc(tg.name)}" ${tgType(tg.guideType)} ${tg.fare > 0 ? tg.fare.toLocaleString()+'원' : ''} ${tg.hipassOnly ? 'HI-PASS전용' : ''} ${tg.avgSpeed}km/h ${congLabel(tg.congestion)} TG-ID:${tg.tgId}
+        [${i}] ${vx(tg.vxIdx, coords)} "${esc(tg.name)}" ${tgType(tg.guideType)} ${tg.fare > 0 ? tg.fare.toLocaleString()+'원' : ''} ${tg.hipassOnly ? 'HI-PASS전용' : ''} ${tg.avgSpeed}km/h ${congLabel(tg.congestion)} TG-ID:${tg.tgId}
       </div>`
     ).join('');
     html += sectionDetail('톨게이트', 'TG4', tvasResult.tollGates.length, rows);
@@ -1830,7 +1841,7 @@ function buildSummaryHtml(s, elapsed, tvasResult, coords, respInfo) {
   if (tvasResult.restAreas && tvasResult.restAreas.length > 0) {
     const rows = tvasResult.restAreas.map((ra, i) =>
       `<div style="padding:2px 0;border-bottom:1px solid rgba(148,163,184,0.08)">
-        [${i}] VX${ra.entryVxIdx}~${ra.exitVxIdx} "${esc(ra.name)}" POI:${ra.poiId}
+        [${i}] ${vxRange(ra.entryVxIdx, ra.exitVxIdx, coords)} "${esc(ra.name)}" POI:${ra.poiId}
       </div>`
     ).join('');
     html += sectionDetail('휴게소', 'SA3', tvasResult.restAreas.length, rows);
@@ -1849,7 +1860,7 @@ function buildSummaryHtml(s, elapsed, tvasResult, coords, respInfo) {
     };
     const rows = tvasResult.laneGuidance.map((tl, i) =>
       `<div style="padding:3px 0;border-bottom:1px solid rgba(148,163,184,0.08)">
-        [${i}] VX${tl.vxIdx} ${tl.totalLanes}차로 (좌포켓${tl.leftPocket} 우포켓${tl.rightPocket})<br>
+        [${i}] ${vx(tl.vxIdx, coords)} ${tl.totalLanes}차로 (좌포켓${tl.leftPocket} 우포켓${tl.rightPocket})<br>
         <span style="color:var(--muted)">권장:</span> ${laneBits(tl.recommendLane, tl.totalLanes)} <span style="color:var(--muted)">(0x${tl.recommendLane.toString(16).padStart(4,'0')})</span><br>
         <span style="color:var(--muted)">유효:</span> ${laneBits(tl.validLane, tl.totalLanes)} <span style="color:var(--muted)">(0x${tl.validLane.toString(16).padStart(4,'0')})</span>
         ${tl.overpassLane ? '<br><span style="color:var(--muted)">고가:</span> 0x'+tl.overpassLane.toString(16).padStart(4,'0') : ''}
@@ -1864,7 +1875,7 @@ function buildSummaryHtml(s, elapsed, tvasResult, coords, respInfo) {
   if (tvasResult.highwayMode && tvasResult.highwayMode.length > 0) {
     const rows = tvasResult.highwayMode.map((hw, i) =>
       `<div style="padding:2px 0;border-bottom:1px solid rgba(148,163,184,0.08)">
-        [${i}] VX${hw.startVxIdx}~${hw.endVxIdx}
+        [${i}] ${vxRange(hw.startVxIdx, hw.endVxIdx, coords)}
       </div>`
     ).join('');
     html += sectionDetail('고속모드', 'HW', tvasResult.highwayMode.length, rows);
@@ -1874,7 +1885,7 @@ function buildSummaryHtml(s, elapsed, tvasResult, coords, respInfo) {
   if (tvasResult.cityBoundary && tvasResult.cityBoundary.length > 0) {
     const rows = tvasResult.cityBoundary.map((cb, i) =>
       `<div style="padding:2px 0;border-bottom:1px solid rgba(148,163,184,0.08)">
-        [${i}] VX${cb.vxIdx} 시도코드:${cb.cityCode}
+        [${i}] ${vx(cb.vxIdx, coords)} 시도코드:${cb.cityCode}
       </div>`
     ).join('');
     html += sectionDetail('시도경계', 'CB', tvasResult.cityBoundary.length, rows);
