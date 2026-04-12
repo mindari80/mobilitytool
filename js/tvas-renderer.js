@@ -41,13 +41,13 @@ const DANGER_TYPE_ICONS = {
 };
 
 function getDangerIcon(type) {
-  if (type >= 1 && type <= 6)  return DANGER_TYPE_ICONS.camera;
-  if (type === 10 || type === 11 || type === 30) return DANGER_TYPE_ICONS.section;
-  if (type === 14 || type === 40) return DANGER_TYPE_ICONS.schoolZone;
-  if (type === 15) return DANGER_TYPE_ICONS.accident;
-  if (type === 16) return DANGER_TYPE_ICONS.curve;
-  if (type === 17) return DANGER_TYPE_ICONS.fog;
-  if (type === 18) return DANGER_TYPE_ICONS.train;
+  if ([1,2,6,14,21,37,38].includes(type)) return DANGER_TYPE_ICONS.camera;
+  if ([11,12,13,26,27].includes(type)) return DANGER_TYPE_ICONS.section;
+  if ([16,17,29,30,31,32,33,34,35,36].includes(type)) return DANGER_TYPE_ICONS.schoolZone;
+  if ([3,22].includes(type)) return DANGER_TYPE_ICONS.accident;
+  if (type === 4) return DANGER_TYPE_ICONS.curve;
+  if ([5,23,28].includes(type)) return DANGER_TYPE_ICONS.fog;
+  if (type === 15) return DANGER_TYPE_ICONS.train;
   return DANGER_TYPE_ICONS.default;
 }
 
