@@ -167,10 +167,13 @@ export function toggleTvasLayer(map, key, visible) {
 // ---- Sub-renderers -------------------------------------------------------- //
 
 function renderRoutePolylines(lg, coords, roads) {
-  if (roads.length === 0) {
-    L.polyline(coords.map(c => [c.lat, c.lon]), { color: '#a855f7', weight: 5, opacity: 0.85 }).addTo(lg);
-    return;
-  }
+  // Base polyline connecting ALL VX points (ensures no gaps)
+  const allLatLngs = coords.map(c => [c.lat, c.lon]);
+  L.polyline(allLatLngs, { color: '#a855f7', weight: 3, opacity: 0.4 }).addTo(lg);
+
+  if (roads.length === 0) return;
+
+  // Colored segments by road type on top
   let startIdx = 0;
   for (const road of roads) {
     const endIdx = Math.min(road.lastVxIdx, coords.length - 1);
