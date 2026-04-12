@@ -1740,7 +1740,12 @@ tvasSendBtn.addEventListener('click', async () => {
       };
 
       if (json.header?.errorCode !== '000000') {
-        setStatus(`서버 오류: ${json.header?.errorMessage || json.header?.errorCode || 'Unknown'} (${elapsed}ms)`, 'error');
+        let errDetail = `서버 오류 [${json.header?.errorCode}]: ${json.header?.errorMessage || 'Unknown'}`;
+        if (json.header?.errorDetailCode) errDetail += `\n상세코드: ${json.header.errorDetailCode}`;
+        if (json.header?.errorDetailMessage) errDetail += `\n상세메시지: ${json.header.errorDetailMessage}`;
+        if (json.header?.sessionId) errDetail += `\nSession: ${json.header.sessionId}`;
+        errDetail += ` (${elapsed}ms)`;
+        setStatus(errDetail, 'error');
         tvasSendBtn.disabled = false;
         return;
       }
@@ -1776,14 +1781,21 @@ tvasSendBtn.addEventListener('click', async () => {
       tvasSaveRespBtn.style.display = '';
 
       const dv = new DataView(rawBuf);
-      const dec = new TextDecoder('ascii');
+      const decUtf = new TextDecoder('utf-8');
+      const decEuc = new TextDecoder('euc-kr');
+      // Try UTF-8 first, fallback to EUC-KR for Korean text
+      function decStr(bytes) {
+        const s = decUtf.decode(bytes).replace(/\0+$/g, '');
+        if (s.includes('\ufffd')) return decEuc.decode(bytes).replace(/\0+$/g, '');
+        return s;
+      }
 
       // Parse binary response wrapper
-      const errCode    = dec.decode(rawBytes.slice(0, 6));
-      const errMsg     = dec.decode(rawBytes.slice(6, 106)).replace(/\0+$/g, '');
-      const detailCode = dec.decode(rawBytes.slice(106, 116)).replace(/\0+$/g, '');
-      const detailMsg  = dec.decode(rawBytes.slice(116, 216)).replace(/\0+$/g, '');
-      const sessionId  = dec.decode(rawBytes.slice(216, 240)).replace(/\0+$/g, '');
+      const errCode    = decStr(rawBytes.slice(0, 6));
+      const errMsg     = decStr(rawBytes.slice(6, 106));
+      const detailCode = decStr(rawBytes.slice(106, 116));
+      const detailMsg  = decStr(rawBytes.slice(116, 216));
+      const sessionId  = decStr(rawBytes.slice(216, 240));
       const routeCount = rawBytes[240];
 
       // tvasSize[] — big-endian int32 × routeCount
@@ -1805,13 +1817,19 @@ tvasSendBtn.addEventListener('click', async () => {
         `[바이너리 응답] ${rawBuf.byteLength} bytes\n` +
         `errorCode: ${errCode}\n` +
         `errorMessage: ${errMsg}\n` +
+        (detailCode ? `errorDetailCode: ${detailCode}\n` : '') +
+        (detailMsg ? `errorDetailMessage: ${detailMsg}\n` : '') +
         `sessionId: ${sessionId}\n` +
         `routeCount: ${routeCount}\n` +
         `tvasSize: [${tvasSizes.join(', ')}]\n` +
         `TVAS offset: ${tvasStart}`;
 
       if (errCode !== '000000') {
-        setStatus(`서버 오류: ${errMsg || errCode} (${elapsed}ms)`, 'error');
+        let errDetail = `서버 오류 [${errCode}]: ${errMsg || 'Unknown'}`;
+        if (detailCode) errDetail += `\n상세코드: ${detailCode}`;
+        if (detailMsg) errDetail += `\n상세메시지: ${detailMsg}`;
+        errDetail += `\nSession: ${sessionId} (${elapsed}ms)`;
+        setStatus(errDetail, 'error');
         tvasSendBtn.disabled = false;
         return;
       }
