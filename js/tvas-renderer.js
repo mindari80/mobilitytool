@@ -8,6 +8,7 @@
 import {
   ROAD_TYPE_NAMES, LINK_TYPE_NAMES, FACILITY_CODE_NAMES,
   GUIDANCE_CODE_NAMES, DANGER_TYPE_NAMES, ROUTE_OPTION_NAMES,
+  LANE_ANGLE_NAMES, LANE_ANGLE_ARROWS,
 } from './tvas-parser.js';
 
 // ---- Layer state ---------------------------------------------------------- //
@@ -91,22 +92,50 @@ function destIconHtml() {
 
 // ---- Lane icon for map ---------------------------------------------------- //
 
+function angleToArrow(angle) { return LANE_ANGLE_ARROWS[angle] || '?'; }
+function angleName(angle) { return LANE_ANGLE_NAMES[angle] || angle + '\u00b0'; }
+
+// Decode per-lane angles from a 2-byte combined angle value
+// Each lane gets a direction based on its bit position in the angle field
+function decodeLaneAngles(angleVal, laneVal, totalLanes) {
+  // The angle value encodes directions for active lanes
+  // For simplicity, distribute the angle to all active bits
+  const angles = [];
+  for (let b = 0; b < totalLanes; b++) {
+    if ((laneVal >> b) & 1) {
+      angles[b] = angleVal; // All active lanes share the angle
+    }
+  }
+  return angles;
+}
+
 function laneIconHtml(tl) {
   const n = tl.totalLanes;
   if (n === 0) return '';
-  let html = '<div style="display:flex;gap:1px;background:rgba(15,23,42,0.9);padding:3px 4px;border-radius:4px;border:1px solid #475569;box-shadow:0 1px 4px rgba(0,0,0,.5)">';
+  const recArrow = angleToArrow(tl.recommendAngle);
+  const valArrow = angleToArrow(tl.validAngle);
+  let html = '<div style="display:flex;gap:1px;background:rgba(15,23,42,0.92);padding:3px 4px;border-radius:5px;border:1px solid #475569;box-shadow:0 2px 6px rgba(0,0,0,.6)">';
   for (let b = 0; b < n; b++) {
     const isRec = (tl.recommendLane >> b) & 1;
     const isVal = (tl.validLane >> b) & 1;
     const isLP = b < tl.leftPocket;
     const isRP = b >= (n - tl.rightPocket);
-    let bg;
-    if (isRec) bg = '#166534';
-    else if (isVal) bg = '#1e3a5f';
-    else bg = '#374151';
-    const border = isRec ? '#22c55e' : isVal ? '#3b82f6' : '#6b7280';
-    const pocket = isLP ? 'P' : isRP ? 'P' : '';
-    html += `<div style="width:12px;height:18px;line-height:18px;text-align:center;border-radius:2px;background:${bg};border:1px solid ${border};font-size:7px;color:${(isLP||isRP)?'#fbbf24':'#e2e8f0'}">${pocket}</div>`;
+    const isOverpass = (tl.overpassLane >> b) & 1;
+    const isUnderpass = (tl.underpassLane >> b) & 1;
+    const isBus = (tl.busLaneCode === 1 || tl.busLaneCode === 2) ? (b === n - 1) :
+                  (tl.busLaneCode === 3 || tl.busLaneCode === 4) ? (b === 0) : false;
+    let bg, border;
+    if (isRec) { bg = '#166534'; border = '#22c55e'; }
+    else if (isVal) { bg = '#1e3a5f'; border = '#3b82f6'; }
+    else { bg = '#374151'; border = '#6b7280'; }
+    const arrow = isRec ? recArrow : isVal ? valArrow : '';
+    let extra = '';
+    if (isLP || isRP) extra = '<div style="font-size:6px;color:#fbbf24">P</div>';
+    if (isOverpass) extra = '<div style="font-size:6px;color:#f97316">고</div>';
+    if (isUnderpass) extra = '<div style="font-size:6px;color:#06b6d4">지</div>';
+    if (isBus) extra = '<div style="font-size:6px;color:#a78bfa">B</div>';
+    html += `<div style="width:16px;text-align:center;border-radius:2px;background:${bg};border:1px solid ${border};padding:1px 0;line-height:1.1">
+      <div style="font-size:10px;color:#fff">${arrow}</div>${extra}</div>`;
   }
   html += '</div>';
   return html;
@@ -271,6 +300,81 @@ function renderRestAreas(lg, coords, restAreas) {
   }
 }
 
+function buildLanePopup(tl, c) {
+  const n = tl.totalLanes;
+  const busNames = {0:'없음',1:'우측차로(전일)',2:'우측차로(시간제)',3:'중앙차로(전일)',4:'중앙차로(시간제)'};
+  const roadNames = ROAD_TYPE_NAMES;
+
+  let html = `<div style="font-size:12px;line-height:1.6;max-width:320px">`;
+  html += `<b>차로안내</b> (${n}차로)`;
+  html += `<br>VX: ${tl.vxIdx} | WGS84: ${c.lat.toFixed(6)}, ${c.lon.toFixed(6)}`;
+  if (tl.roadTypeCode !== undefined) html += `<br>도로종별: ${roadNames[tl.roadTypeCode] || tl.roadTypeCode}`;
+
+  // 차로 상세 테이블
+  html += `<table style="width:100%;margin:6px 0;border-collapse:collapse;font-size:11px">`;
+  html += `<tr style="background:rgba(148,163,184,0.1)"><th style="padding:3px 4px;text-align:center;border:1px solid #334155">차로</th><th style="padding:3px;border:1px solid #334155">권장</th><th style="padding:3px;border:1px solid #334155">유효</th><th style="padding:3px;border:1px solid #334155">속성</th></tr>`;
+
+  for (let b = 0; b < n; b++) {
+    const isRec = (tl.recommendLane >> b) & 1;
+    const isVal = (tl.validLane >> b) & 1;
+    const isLP = b < tl.leftPocket;
+    const isRP = b >= (n - tl.rightPocket);
+    const isOver = (tl.overpassLane >> b) & 1;
+    const isUnder = (tl.underpassLane >> b) & 1;
+    const isBus = (tl.busLaneCode === 1 || tl.busLaneCode === 2) ? (b === n - 1) :
+                  (tl.busLaneCode === 3 || tl.busLaneCode === 4) ? (b === 0) : false;
+
+    const recMark = isRec ? `<span style="color:#22c55e;font-weight:700">${angleToArrow(tl.recommendAngle)} ${angleName(tl.recommendAngle)}</span>` : '<span style="color:#6b7280">-</span>';
+    const valMark = isVal ? `<span style="color:#3b82f6">${angleToArrow(tl.validAngle)} ${angleName(tl.validAngle)}</span>` : '<span style="color:#6b7280">-</span>';
+
+    let attrs = [];
+    if (isLP) attrs.push('<span style="color:#fbbf24">좌포켓</span>');
+    if (isRP) attrs.push('<span style="color:#fbbf24">우포켓</span>');
+    if (isOver) attrs.push('<span style="color:#f97316">고가</span>');
+    if (isUnder) attrs.push('<span style="color:#06b6d4">지하</span>');
+    if (isBus) attrs.push('<span style="color:#a78bfa">버스</span>');
+
+    const rowBg = isRec ? 'rgba(34,197,94,0.08)' : isVal ? 'rgba(59,130,246,0.06)' : '';
+    html += `<tr style="background:${rowBg}"><td style="padding:3px 4px;text-align:center;border:1px solid #334155;font-weight:600">${b+1}</td>`;
+    html += `<td style="padding:3px 4px;border:1px solid #334155">${recMark}</td>`;
+    html += `<td style="padding:3px 4px;border:1px solid #334155">${valMark}</td>`;
+    html += `<td style="padding:3px 4px;border:1px solid #334155">${attrs.join(' ') || '-'}</td></tr>`;
+  }
+  html += `</table>`;
+
+  // 비유효차로 정보
+  if (tl.invalidLanes && tl.invalidLanes.length > 0) {
+    html += `<b>비유효차로 (${tl.invalidLanes.length}건)</b><br>`;
+    tl.invalidLanes.forEach((iv, j) => {
+      let ivLanes = [];
+      for (let b = 0; b < n; b++) { if ((iv.lane >> b) & 1) ivLanes.push(b + 1); }
+      html += `#${j+1}: 차로 [${ivLanes.join(',')}] ${angleToArrow(iv.angle)} ${angleName(iv.angle)}<br>`;
+    });
+  }
+
+  // 버스전용차로
+  if (tl.busLaneCode > 0) {
+    html += `<br><b>버스전용차로:</b> ${busNames[tl.busLaneCode] || tl.busLaneCode}`;
+  }
+
+  // 고가/지하
+  if (tl.overpassLane) {
+    let ovLanes = [];
+    for (let b = 0; b < n; b++) { if ((tl.overpassLane >> b) & 1) ovLanes.push(b + 1); }
+    if (ovLanes.length) html += `<br><b>고가진입차로:</b> ${ovLanes.join(', ')}차로`;
+  }
+  if (tl.underpassLane) {
+    let unLanes = [];
+    for (let b = 0; b < n; b++) { if ((tl.underpassLane >> b) & 1) unLanes.push(b + 1); }
+    if (unLanes.length) html += `<br><b>지하진입차로:</b> ${unLanes.join(', ')}차로`;
+  }
+
+  // Raw hex
+  html += `<br><span style="color:#6b7280;font-size:10px">권장:0x${tl.recommendLane.toString(16).padStart(4,'0')} 유효:0x${tl.validLane.toString(16).padStart(4,'0')} 각도:${tl.recommendAngle}/${tl.validAngle}</span>`;
+  html += `</div>`;
+  return html;
+}
+
 function renderLaneGuidance(lg, coords, laneGuidance) {
   for (const tl of laneGuidance) {
     if (tl.vxIdx >= coords.length) continue;
@@ -278,17 +382,11 @@ function renderLaneGuidance(lg, coords, laneGuidance) {
     const iconHtml = laneIconHtml(tl);
     if (!iconHtml) continue;
     const n = tl.totalLanes;
-    let popup = `<b>차로안내</b> (${n}차로)`;
-    if (tl.leftPocket) popup += `<br>좌 포켓: ${tl.leftPocket}`;
-    if (tl.rightPocket) popup += `<br>우 포켓: ${tl.rightPocket}`;
-    popup += `<br>권장: 0x${tl.recommendLane.toString(16).padStart(4,'0')}`;
-    popup += `<br>유효: 0x${tl.validLane.toString(16).padStart(4,'0')}`;
-    if (tl.busLaneCode) popup += `<br>버스전용: ${({1:'우측(전일)',2:'우측(시간제)',3:'중앙(전일)',4:'중앙(시간제)'}[tl.busLaneCode]) || tl.busLaneCode}`;
-    popup += `<br>VX: ${tl.vxIdx}<br>WGS84: ${c.lat.toFixed(6)}, ${c.lon.toFixed(6)}`;
+    const popup = buildLanePopup(tl, c);
     L.marker([c.lat, c.lon], {
-      icon: L.divIcon({ className: '', html: iconHtml, iconSize: [n * 14 + 8, 24], iconAnchor: [(n * 14 + 8) / 2, 30] }),
+      icon: L.divIcon({ className: '', html: iconHtml, iconSize: [n * 18 + 8, 30], iconAnchor: [(n * 18 + 8) / 2, 36] }),
       zIndexOffset: 500,
-    }).bindPopup(popup, { maxWidth: 300 }).addTo(lg);
+    }).bindPopup(popup, { maxWidth: 380 }).addTo(lg);
   }
 }
 

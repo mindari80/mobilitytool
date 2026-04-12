@@ -345,8 +345,12 @@ function parseHighwayMode(dv, offset, size) {
 
 function parseLaneGuidance(dv, offset, size) {
   // Header: 20 bytes
-  const count = dv.getUint16(offset, true);
+  const count          = dv.getUint16(offset, true);
+  const invalidBlobSize = dv.getInt32(offset + 8, true);
+  const busBlobSize     = dv.getInt32(offset + 12, true);
   const dataStart = offset + 20;
+  const blobStart = dataStart + count * 32; // 비유효차로/버스 실데이터 영역
+
   const lanes = [];
   for (let i = 0; i < count; i++) {
     const base = dataStart + i * 32;
@@ -356,21 +360,53 @@ function parseLaneGuidance(dv, offset, size) {
     const rightPocket    = dv.getUint8(base + 4);
     const invalidCount   = dv.getUint8(base + 5);
     const busLaneCode    = dv.getUint8(base + 7);
+    const busLaneOffset  = dv.getInt32(base + 8, true);
     const recommendLane  = dv.getUint16(base + 12, true);
     const recommendAngle = dv.getUint16(base + 14, true);
     const validLane      = dv.getUint16(base + 16, true);
     const validAngle     = dv.getUint16(base + 18, true);
+    const invalidOffset  = dv.getInt32(base + 20, true);
     const overpassLane   = dv.getUint16(base + 24, true);
     const underpassLane  = dv.getUint16(base + 26, true);
     const roadTypeCode   = dv.getUint8(base + 28);
+
+    // Parse invalid lane data (비유효차로 정보)
+    const invalidLanes = [];
+    if (invalidCount > 0 && invalidOffset >= 0) {
+      const ivBase = blobStart + invalidOffset;
+      for (let j = 0; j < invalidCount; j++) {
+        const ivOff = ivBase + j * 4;
+        if (ivOff + 4 <= offset + size) {
+          invalidLanes.push({
+            lane:  dv.getUint16(ivOff, true),
+            angle: dv.getUint16(ivOff + 2, true),
+          });
+        }
+      }
+    }
+
     lanes.push({
       vxIdx, totalLanes, leftPocket, rightPocket, invalidCount, busLaneCode,
       recommendLane, recommendAngle, validLane, validAngle,
-      overpassLane, underpassLane, roadTypeCode,
+      overpassLane, underpassLane, roadTypeCode, invalidLanes,
     });
   }
   return lanes;
 }
+
+// Lane angle → direction name
+const LANE_ANGLE_NAMES = {
+  0: '직진', 45: '우측', 90: '우회전', 135: '우하측',
+  180: '유턴', 225: '좌하측', 270: '좌회전', 315: '좌측',
+};
+
+// Lane angle → arrow symbol
+const LANE_ANGLE_ARROWS = {
+  0: '↑', 45: '↗', 90: '→', 135: '↘',
+  180: '↓', 225: '↙', 270: '←', 315: '↖',
+};
+
+export { LANE_ANGLE_NAMES, LANE_ANGLE_ARROWS };
 
 function parseCityBoundary(dv, offset, size, charset) {
   const count = dv.getUint16(offset, true);
