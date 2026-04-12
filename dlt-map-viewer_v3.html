@@ -1120,6 +1120,7 @@
       <div class="tvas-actions">
         <button id="tvas-send-btn">요청 전송</button>
         <button id="tvas-clear-btn" class="tvas-sub-btn">지우기</button>
+        <button id="tvas-save-resp-btn" class="tvas-sub-btn" style="display:none">응답 저장</button>
       </div>
       <div id="tvas-status"></div>
       <div id="tvas-result-summary"></div>
@@ -1207,6 +1208,9 @@ const tvasSummary    = document.getElementById('tvas-result-summary');
 const tvasRespRaw    = document.getElementById('tvas-response-raw');
 const tvasRespPre    = document.getElementById('tvas-response-pre');
 const tvasLayerToggle = document.getElementById('tvas-layer-toggle');
+const tvasSaveRespBtn = document.getElementById('tvas-save-resp-btn');
+
+let lastResponseJson = null;  // 마지막 응답 원본 저장
 
 function esc(s) {
   return String(s ?? '')
@@ -1379,7 +1383,21 @@ tvasClearBtn.addEventListener('click', () => {
   tvasSummary.innerHTML = '';
   tvasRespRaw.style.display = 'none';
   tvasRespPre.textContent = '';
+  tvasSaveRespBtn.style.display = 'none';
+  lastResponseJson = null;
   setStatus('');
+});
+
+// ---- Save response ---- //
+tvasSaveRespBtn.addEventListener('click', () => {
+  if (!lastResponseJson) return;
+  const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const blob = new Blob([JSON.stringify(lastResponseJson, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `tvas-response-${ts}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
 });
 
 // ---- Layer toggle ---- //
@@ -1459,6 +1477,10 @@ tvasSendBtn.addEventListener('click', async () => {
 
     const json = await resp.json();
 
+    // Save response for download
+    lastResponseJson = json;
+    tvasSaveRespBtn.style.display = '';
+
     // Show raw response
     tvasRespRaw.style.display = '';
     const displayJson = { ...json };
@@ -1481,9 +1503,16 @@ tvasSendBtn.addEventListener('click', async () => {
     }
 
     // Decode base64
-    const binaryStr = atob(b64);
-    const bytes = new Uint8Array(binaryStr.length);
-    for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+    let bytes;
+    try {
+      const binaryStr = atob(b64);
+      bytes = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+    } catch (decErr) {
+      setStatus(`Base64 디코딩 실패: ${decErr.message}`, 'error');
+      tvasSendBtn.disabled = false;
+      return;
+    }
 
     // Parse first TVAS (use tvasSize[0] if available)
     let tvasBuffer = bytes.buffer;
@@ -1491,8 +1520,29 @@ tvasSendBtn.addEventListener('click', async () => {
       tvasBuffer = bytes.buffer.slice(0, json.tvasSize[0]);
     }
 
-    const tvasResult = parseTvas(tvasBuffer);
-    const coords = resolveVertexCoordinates(tvasResult);
+    setStatus(`TVAS 파싱 중... (${bytes.length} bytes, routeCount: ${json.routeCount || '?'})`);
+
+    let tvasResult, coords;
+    try {
+      tvasResult = parseTvas(tvasBuffer);
+      coords = resolveVertexCoordinates(tvasResult);
+    } catch (parseErr) {
+      const bufSize = tvasBuffer.byteLength;
+      const hexDump = Array.from(new Uint8Array(tvasBuffer, 0, Math.min(64, bufSize)))
+        .map(b => b.toString(16).padStart(2, '0')).join(' ');
+      setStatus(
+        `TVAS 파싱 오류: ${parseErr.message}\n` +
+        `버퍼 크기: ${bufSize} bytes\n` +
+        `tvasSize: ${JSON.stringify(json.tvasSize)}\n` +
+        `routeCount: ${json.routeCount}\n` +
+        `처음 64 bytes: ${hexDump}`,
+        'error'
+      );
+      console.error('TVAS parse error:', parseErr);
+      console.log('TVAS buffer (first 256 bytes):', new Uint8Array(tvasBuffer, 0, Math.min(256, bufSize)));
+      tvasSendBtn.disabled = false;
+      return;
+    }
 
     // Render on map
     const map = getMap();
