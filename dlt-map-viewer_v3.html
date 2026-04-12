@@ -1486,36 +1486,39 @@ tvasSendBtn.addEventListener('click', async () => {
       return;
     }
 
-    // Detect response type: JSON or binary
-    const contentType = resp.headers.get('content-type') || '';
+    // Read raw response as ArrayBuffer first, then auto-detect format
+    const rawBuf = await resp.arrayBuffer();
+    const rawBytes = new Uint8Array(rawBuf);
     let tvasBuffer;
     let json = null;
+    let respInfo = {};
 
-    if (contentType.includes('octet-stream') || contentType.includes('binary')) {
-      // Binary response — TVAS data directly
-      const arrayBuf = await resp.arrayBuffer();
-      tvasBuffer = arrayBuf;
-      lastBinaryResponse = arrayBuf;
-      lastResponseJson = null;
-      tvasSaveRespBtn.style.display = '';
-      tvasRespRaw.style.display = '';
-      tvasRespPre.textContent = `[바이너리 응답] ${arrayBuf.byteLength} bytes\nContent-Type: ${contentType}`;
-      setStatus(`바이너리 응답 수신: ${arrayBuf.byteLength} bytes (${elapsed}ms)`);
+    // Auto-detect: if first byte is '{' (0x7B) it's JSON, otherwise binary
+    const isJson = rawBytes.length > 0 && rawBytes[0] === 0x7B;
 
-    } else {
-      // JSON response
-      json = await resp.json();
+    if (isJson) {
+      // JSON response — parse and extract tvases
+      const text = new TextDecoder('utf-8').decode(rawBytes);
+      json = JSON.parse(text);
       lastResponseJson = json;
       lastBinaryResponse = null;
       tvasSaveRespBtn.style.display = '';
 
-      // Show raw response
       tvasRespRaw.style.display = '';
       const displayJson = { ...json };
-      if (displayJson.tvases && displayJson.tvases.length > 200) {
+      if (displayJson.tvases && typeof displayJson.tvases === 'string' && displayJson.tvases.length > 200) {
         displayJson.tvases = displayJson.tvases.substring(0, 200) + '... (truncated)';
       }
       tvasRespPre.textContent = JSON.stringify(displayJson, null, 2);
+
+      respInfo = {
+        sessionId: json.header?.sessionId,
+        errorCode: json.header?.errorCode,
+        errorMessage: json.header?.errorMessage,
+        routeCount: json.routeCount,
+        tvasSize: json.tvasSize,
+        routePlanTypes: json.routePlanTypes,
+      };
 
       if (json.header?.errorCode !== '000000') {
         setStatus(`서버 오류: ${json.header?.errorMessage || json.header?.errorCode || 'Unknown'} (${elapsed}ms)`, 'error');
@@ -1530,7 +1533,7 @@ tvasSendBtn.addEventListener('click', async () => {
         return;
       }
 
-      // Decode base64
+      // Decode base64 tvases
       let bytes;
       try {
         const binaryStr = atob(b64);
@@ -1546,6 +1549,23 @@ tvasSendBtn.addEventListener('click', async () => {
       if (json.tvasSize && json.tvasSize[0] && json.tvasSize[0] < bytes.length) {
         tvasBuffer = bytes.buffer.slice(0, json.tvasSize[0]);
       }
+
+    } else {
+      // Binary response — raw TVAS data directly
+      lastBinaryResponse = rawBuf;
+      lastResponseJson = null;
+      tvasSaveRespBtn.style.display = '';
+
+      tvasRespRaw.style.display = '';
+      const hexPreview = Array.from(rawBytes.slice(0, 64))
+        .map(b => b.toString(16).padStart(2, '0')).join(' ');
+      tvasRespPre.textContent =
+        `[바이너리 응답] ${rawBuf.byteLength} bytes\n` +
+        `처음 64 bytes:\n${hexPreview}`;
+
+      tvasBuffer = rawBuf;
+      respInfo = { sessionId: '-', routeCount: '?', tvasSize: [rawBuf.byteLength] };
+      setStatus(`바이너리 응답 수신: ${rawBuf.byteLength} bytes (${elapsed}ms)`);
     }
 
     setStatus(`TVAS 파싱 중... (${tvasBuffer.byteLength} bytes)`);
@@ -1561,7 +1581,7 @@ tvasSendBtn.addEventListener('click', async () => {
       setStatus(
         `TVAS 파싱 오류: ${parseErr.message}\n` +
         `버퍼 크기: ${bufSize} bytes\n` +
-        (json ? `tvasSize: ${JSON.stringify(json.tvasSize)}\nrouteCount: ${json.routeCount}\n` : '') +
+        `tvasSize: ${JSON.stringify(respInfo.tvasSize)}\nrouteCount: ${respInfo.routeCount}\n` +
         `처음 64 bytes: ${hexDump}`,
         'error'
       );
