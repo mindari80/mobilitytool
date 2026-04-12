@@ -1377,12 +1377,18 @@ function applyWaypointsToBody() {
     }
     // 경유지 반영
     if (routeWaypoints.vias.length > 0) {
-      body.passList = routeWaypoints.vias.map((v, i) => {
+      body.wayPoints = routeWaypoints.vias.map((v, i) => {
         const sk = wgs84ToSkCoord(v.lat, v.lon);
-        return { name: '경유지' + (i+1), xPos: sk[0], yPos: sk[1] };
+        return {
+          x: sk[0],
+          y: sk[1],
+          wayPointName: '경유지' + (i + 1),
+          wayPointSearchFlag: 'RouteGuide',
+          rpFlag: 99,
+        };
       });
     } else {
-      delete body.passList;
+      delete body.wayPoints;
     }
     tvasBody.value = JSON.stringify(body, null, 2);
   } catch (e) { /* body not valid JSON, skip */ }
