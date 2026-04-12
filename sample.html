@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>CJ더마켓 - TDS Sample</title>
+  <style>
+    :root {
+      /* TDS Color System (Light Mode) */
+      --grey50: #f9fafb;
+      --grey100: #f2f4f6;
+      --grey200: #e5e8eb;
+      --grey300: #d1d6db;
+      --grey400: #b0b8c1;
+      --grey500: #8b95a1;
+      --grey600: #6b7684;
+      --grey700: #4e5968;
+      --grey800: #333d4b;
+      --grey900: #191f28;
+      --blue50: #e8f3ff;
+      --blue100: #c9e2ff;
+      --blue500: #3182f6;
+      --blue600: #2272eb;
+      --red500: #f04452;
+      --bg: #FFFFFF;
+      --surface: var(--grey50);
+      --border: var(--grey200);
+      --text: var(--grey900);
+      --text-secondary: var(--grey700);
+      --muted: var(--grey500);
+      --accent: var(--blue500);
+      /* TDS Radius */
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Toss Product Sans', 'SF Pro KR', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', Roboto, 'Noto Sans KR', 'Helvetica Neue', sans-serif;
+      background: var(--grey100);
+      color: var(--text);
+      font-size: 15px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* ---- App Container ---- */
+    .app-container {
+      max-width: 430px;
+      margin: 0 auto;
+      min-height: 100vh;
+      background: var(--bg);
+      box-shadow: 0 0 40px rgba(0, 0, 0, 0.08);
+      padding-bottom: 68px;
+      position: relative;
+    }
+
+    /* ---- Top Navigation ---- */
+    .top-nav {
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      background: var(--bg);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-logo {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 29px;
+      letter-spacing: -0.3px;
+    }
+
+    .nav-logo span {
+      color: var(--accent);
+    }
+
+    .nav-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .nav-icon {
+      width: 24px;
+      height: 24px;
+      color: var(--grey800);
+      cursor: pointer;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .nav-icon svg {
+      width: 24px;
+      height: 24px;
+    }
+
+    .nav-icon:active {
+      opacity: 0.6;
+    }
+
+    .cart-badge {
+      position: absolute;
+      top: -4px;
+      right: -6px;
+      background: var(--red500);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+    }
+
+    /* ---- Carousel ---- */
+    .carousel-section {
+      position: relative;
+      overflow: hidden;
+      background: var(--grey100);
+    }
+
+    .carousel-viewport {
+      overflow: hidden;
+      touch-action: pan-y;
+    }
+
+    .carousel-track {
+      display: flex;
+      transition: transform 0.45s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    }
+
+    .carousel-slide {
+      min-width: 100%;
+      flex-shrink: 0;
+      aspect-ratio: 16 / 9;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 28px 24px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .carousel-slide::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0) 60%);
+      z-index: 1;
+    }
+
+    .slide-tag {
+      position: relative;
+      z-index: 2;
+      display: inline-block;
+      width: fit-content;
+      background: rgba(255,255,255,0.2);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 4px;
+      margin-bottom: 8px;
+      letter-spacing: 0.2px;
+    }
+
+    .slide-title {
+      position: relative;
+      z-index: 2;
+      color: #fff;
+      font-size: 22px;
+      font-weight: 700;
+      line-height: 31px;
+      letter-spacing: -0.4px;
+    }
+
+    .slide-desc {
+      position: relative;
+      z-index: 2;
+      color: rgba(255,255,255,0.85);
+      font-size: 14px;
+      line-height: 21px;
+      margin-top: 4px;
+    }
+
+    .slide-1 { background: linear-gradient(135deg, #3182f6 0%, #1b64da 50%, #194aa6 100%); }
+    .slide-2 { background: linear-gradient(135deg, #f04452 0%, #d22030 50%, #a51926 100%); }
+    .slide-3 { background: linear-gradient(135deg, #22c55e 0%, #15803d 50%, #027648 100%); }
+    .slide-4 { background: linear-gradient(135deg, #f59e0b 0%, #e45600 50%, #c2410c 100%); }
+    .slide-5 { background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 50%, #65237b 100%); }
+
+    .carousel-indicators {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 6px;
+      padding: 14px 0;
+      background: var(--bg);
+    }
+
+    .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 3px;
+      background: var(--grey300);
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+
+    .dot.active {
+      width: 20px;
+      background: var(--grey800);
+    }
+
+    /* ---- Quick Menu ---- */
+    .quick-menu-section {
+      padding: 20px 16px 24px;
+    }
+
+    .quick-menu-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 18px 0;
+    }
+
+    .quick-menu-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .quick-menu-item:active .quick-menu-icon {
+      transform: scale(0.92);
+      background: var(--grey200);
+    }
+
+    .quick-menu-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: var(--grey50);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      transition: all 0.15s ease;
+      border: 1px solid var(--grey200);
+    }
+
+    .quick-menu-label {
+      font-size: 12px;
+      line-height: 18px;
+      color: var(--text-secondary);
+      text-align: center;
+      font-weight: 400;
+      letter-spacing: -0.2px;
+    }
+
+    /* ---- Section Divider ---- */
+    .section-divider {
+      height: 8px;
+      background: var(--grey100);
+    }
+
+    /* ---- Tab Section ---- */
+    .tab-section {
+      background: var(--bg);
+    }
+
+    .tab-bar {
+      display: flex;
+      border-bottom: 1px solid var(--grey200);
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+
+    .tab-bar::-webkit-scrollbar { display: none; }
+
+    .tab-item {
+      flex-shrink: 0;
+      padding: 14px 16px;
+      font-size: 15px;
+      font-weight: 400;
+      color: var(--grey500);
+      cursor: pointer;
+      position: relative;
+      white-space: nowrap;
+      transition: color 0.2s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .tab-item.active {
+      color: var(--grey900);
+      font-weight: 600;
+    }
+
+    .tab-item.active::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 16px;
+      right: 16px;
+      height: 2px;
+      background: var(--grey900);
+      border-radius: 1px;
+    }
+
+    /* ---- Product Grid (Bonus section) ---- */
+    .product-section {
+      padding: 20px 16px;
+    }
+
+    .product-section-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 29px;
+      margin-bottom: 4px;
+      letter-spacing: -0.3px;
+    }
+
+    .product-section-desc {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 19.5px;
+      margin-bottom: 16px;
+    }
+
+    .product-scroll {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      padding-bottom: 4px;
+    }
+
+    .product-scroll::-webkit-scrollbar { display: none; }
+
+    .product-card {
+      flex-shrink: 0;
+      width: 140px;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .product-card:active {
+      opacity: 0.7;
+    }
+
+    .product-thumb {
+      width: 140px;
+      height: 140px;
+      border-radius: var(--radius-md);
+      background: var(--grey100);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 48px;
+      overflow: hidden;
+    }
+
+    .product-brand {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 18px;
+      margin-bottom: 2px;
+    }
+
+    .product-name {
+      font-size: 14px;
+      color: var(--text);
+      line-height: 21px;
+      font-weight: 400;
+      margin-bottom: 6px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .product-price {
+      display: flex;
+      align-items: baseline;
+      gap: 4px;
+    }
+
+    .price-discount {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--red500);
+    }
+
+    .price-value {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .price-original {
+      font-size: 12px;
+      color: var(--grey400);
+      text-decoration: line-through;
+    }
+
+    /* ---- Bottom Navigation ---- */
+    .bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 430px;
+      height: 68px;
+      background: var(--bg);
+      border-top: 1px solid var(--grey200);
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      padding: 0 8px;
+      padding-bottom: env(safe-area-inset-bottom, 0);
+      z-index: 200;
+    }
+
+    .bottom-nav-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      padding: 6px 12px;
+      min-width: 56px;
+    }
+
+    .bottom-nav-item:active {
+      opacity: 0.6;
+    }
+
+    .bottom-nav-icon {
+      width: 24px;
+      height: 24px;
+      color: var(--grey500);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .bottom-nav-icon svg {
+      width: 24px;
+      height: 24px;
+    }
+
+    .bottom-nav-label {
+      font-size: 10px;
+      line-height: 14px;
+      color: var(--grey500);
+      font-weight: 500;
+      letter-spacing: -0.2px;
+    }
+
+    .bottom-nav-item.active .bottom-nav-icon {
+      color: var(--grey900);
+    }
+
+    .bottom-nav-item.active .bottom-nav-label {
+      color: var(--grey900);
+      font-weight: 700;
+    }
+
+    .noti-badge {
+      position: absolute;
+      top: -3px;
+      right: -5px;
+      width: 8px;
+      height: 8px;
+      background: var(--red500);
+      border-radius: 50%;
+      border: 1.5px solid var(--bg);
+    }
+  </style>
+</head>
+<body>
+
+<div class="app-container">
+  <!-- Top Navigation -->
+  <nav class="top-nav">
+    <div class="nav-left">
+      <!-- Hamburger Menu -->
+      <div class="nav-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <line x1="3" y1="6" x2="21" y2="6"/>
+          <line x1="3" y1="12" x2="21" y2="12"/>
+          <line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </div>
+      <div class="nav-logo"><span>CJ</span>더마켓</div>
+    </div>
+    <div class="nav-actions">
+      <!-- Search -->
+      <div class="nav-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="7"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+      </div>
+      <!-- Notification -->
+      <div class="nav-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+        <span class="noti-badge" style="position:absolute;top:-3px;right:-5px;width:8px;height:8px;background:var(--red500);border-radius:50%;border:1.5px solid var(--bg);"></span>
+      </div>
+      <!-- Cart -->
+      <div class="nav-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+          <line x1="3" y1="6" x2="21" y2="6"/>
+          <path d="M16 10a4 4 0 0 1-8 0"/>
+        </svg>
+        <span class="cart-badge">3</span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Banner Carousel -->
+  <section class="carousel-section">
+    <div class="carousel-viewport" id="carouselViewport">
+      <div class="carousel-track" id="carouselTrack">
+        <div class="carousel-slide slide-1">
+          <span class="slide-tag">오늘만 특가</span>
+          <div class="slide-title">봄맞이 신선식품<br>최대 40% 할인</div>
+          <div class="slide-desc">산지직송 제철 과일 모음전</div>
+        </div>
+        <div class="carousel-slide slide-2">
+          <span class="slide-tag">단독 혜택</span>
+          <div class="slide-title">비비고 인기상품<br>1+1 대전</div>
+          <div class="slide-desc">만두부터 국물요리까지</div>
+        </div>
+        <div class="carousel-slide slide-3">
+          <span class="slide-tag">건강 기획전</span>
+          <div class="slide-title">건강한 식탁을 위한<br>유기농 채소</div>
+          <div class="slide-desc">첫 구매 시 30% 할인 쿠폰</div>
+        </div>
+        <div class="carousel-slide slide-4">
+          <span class="slide-tag">선물 추천</span>
+          <div class="slide-title">감사의 마음을 담은<br>프리미엄 선물세트</div>
+          <div class="slide-desc">무료배송 + 전용 포장</div>
+        </div>
+        <div class="carousel-slide slide-5">
+          <span class="slide-tag">신규 입점</span>
+          <div class="slide-title">매일 새로운 맛<br>베이커리 컬렉션</div>
+          <div class="slide-desc">오늘 구운 빵을 내일 배송</div>
+        </div>
+      </div>
+    </div>
+    <div class="carousel-indicators" id="carouselIndicators">
+      <div class="dot active" data-index="0"></div>
+      <div class="dot" data-index="1"></div>
+      <div class="dot" data-index="2"></div>
+      <div class="dot" data-index="3"></div>
+      <div class="dot" data-index="4"></div>
+    </div>
+  </section>
+
+  <!-- Quick Menu -->
+  <section class="quick-menu-section">
+    <div class="quick-menu-grid">
+      <div class="quick-menu-item">
+        <div class="quick-menu-icon">🍱</div>
+        <div class="quick-menu-label">간편식</div>
+      </div>
+      <div class="quick-menu-item">
+        <div class="quick-menu-icon">💊</div>
+        <div class="quick-menu-label">건강식품</div>
+      </div>
+      <div class="quick-menu-item">
+        <div class="quick-menu-icon">🥬</div>
+        <div class="quick-menu-label">신선식품</div>
+      </div>
+      <div class="quick-menu-item">
+        <div class="quick-menu-icon">🧊</div>
+        <div class="quick-menu-label">냉동식품</div>
+      </div>
+      <div class="quick-menu-item">
+        <div class="quick-menu-icon">🥘</div>
+        <div class="quick-menu-label">김치/반찬</div>
+      </div>
+      <div class="quick-menu-item">
+        <div class="quick-menu-icon">🎁</div>
+        <div class="quick-menu-label">선물세트</div>
+      </div>
+      <div class="quick-menu-item">
+        <div class="quick-menu-icon">🥤</div>
+        <div class="quick-menu-label">음료/간식</div>
+      </div>
+      <div class="quick-menu-item">
+        <div class="quick-menu-icon">🍞</div>
+        <div class="quick-menu-label">베이커리</div>
+      </div>
+      <div class="quick-menu-item">
+        <div class="quick-menu-icon">🏃</div>
+        <div class="quick-menu-label">다이어트</div>
+      </div>
+      <div class="quick-menu-item">
+        <div class="quick-menu-icon">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <rect x="1" y="1" width="5" height="5" rx="1.5" fill="#4e5968"/>
+            <rect x="7.5" y="1" width="5" height="5" rx="1.5" fill="#4e5968"/>
+            <rect x="14" y="1" width="5" height="5" rx="1.5" fill="#4e5968"/>
+            <rect x="1" y="7.5" width="5" height="5" rx="1.5" fill="#4e5968"/>
+            <rect x="7.5" y="7.5" width="5" height="5" rx="1.5" fill="#4e5968"/>
+            <rect x="14" y="7.5" width="5" height="5" rx="1.5" fill="#4e5968"/>
+            <rect x="1" y="14" width="5" height="5" rx="1.5" fill="#4e5968"/>
+            <rect x="7.5" y="14" width="5" height="5" rx="1.5" fill="#4e5968"/>
+            <rect x="14" y="14" width="5" height="5" rx="1.5" fill="#4e5968"/>
+          </svg>
+        </div>
+        <div class="quick-menu-label">전체보기</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section Divider -->
+  <div class="section-divider"></div>
+
+  <!-- Tab Section -->
+  <section class="tab-section">
+    <div class="tab-bar">
+      <div class="tab-item active">추천</div>
+      <div class="tab-item">신상품</div>
+      <div class="tab-item">베스트</div>
+      <div class="tab-item">특가</div>
+      <div class="tab-item">이벤트</div>
+    </div>
+  </section>
+
+  <!-- Product Section -->
+  <section class="product-section">
+    <div class="product-section-title">오늘의 추천 상품</div>
+    <div class="product-section-desc">회원님을 위해 엄선한 상품이에요</div>
+    <div class="product-scroll">
+      <div class="product-card">
+        <div class="product-thumb">🥟</div>
+        <div class="product-brand">비비고</div>
+        <div class="product-name">왕교자 만두 1.05kg</div>
+        <div class="product-price">
+          <span class="price-discount">25%</span>
+          <span class="price-value">8,900원</span>
+        </div>
+        <div class="price-original">11,900원</div>
+      </div>
+      <div class="product-card">
+        <div class="product-thumb">🍲</div>
+        <div class="product-brand">비비고</div>
+        <div class="product-name">소고기미역국 500g</div>
+        <div class="product-price">
+          <span class="price-discount">20%</span>
+          <span class="price-value">4,780원</span>
+        </div>
+        <div class="price-original">5,980원</div>
+      </div>
+      <div class="product-card">
+        <div class="product-thumb">🥩</div>
+        <div class="product-brand">더마켓</div>
+        <div class="product-name">한우 등심 1++ 300g</div>
+        <div class="product-price">
+          <span class="price-discount">15%</span>
+          <span class="price-value">32,900원</span>
+        </div>
+        <div class="price-original">38,700원</div>
+      </div>
+      <div class="product-card">
+        <div class="product-thumb">🫒</div>
+        <div class="product-brand">백설</div>
+        <div class="product-name">포도씨유 900ml</div>
+        <div class="product-price">
+          <span class="price-discount">30%</span>
+          <span class="price-value">6,290원</span>
+        </div>
+        <div class="price-original">8,980원</div>
+      </div>
+      <div class="product-card">
+        <div class="product-thumb">🥗</div>
+        <div class="product-brand">더마켓</div>
+        <div class="product-name">유기농 샐러드 키트</div>
+        <div class="product-price">
+          <span class="price-discount">10%</span>
+          <span class="price-value">5,390원</span>
+        </div>
+        <div class="price-original">5,990원</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Bottom Navigation -->
+  <nav class="bottom-nav">
+    <div class="bottom-nav-item active">
+      <div class="bottom-nav-icon">
+        <svg viewBox="0 0 24 24" fill="currentColor" stroke="none">
+          <path d="M3 12.5l9-9 9 9V21a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1v-8.5z"/>
+        </svg>
+      </div>
+      <div class="bottom-nav-label">홈</div>
+    </div>
+    <div class="bottom-nav-item">
+      <div class="bottom-nav-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7" rx="1"/>
+          <rect x="14" y="3" width="7" height="7" rx="1"/>
+          <rect x="3" y="14" width="7" height="7" rx="1"/>
+          <rect x="14" y="14" width="7" height="7" rx="1"/>
+        </svg>
+      </div>
+      <div class="bottom-nav-label">카테고리</div>
+    </div>
+    <div class="bottom-nav-item">
+      <div class="bottom-nav-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="7"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+      </div>
+      <div class="bottom-nav-label">검색</div>
+    </div>
+    <div class="bottom-nav-item">
+      <div class="bottom-nav-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+        </svg>
+        <span class="noti-badge"></span>
+      </div>
+      <div class="bottom-nav-label">찜</div>
+    </div>
+    <div class="bottom-nav-item">
+      <div class="bottom-nav-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+          <circle cx="12" cy="7" r="4"/>
+        </svg>
+      </div>
+      <div class="bottom-nav-label">마이</div>
+    </div>
+  </nav>
+</div>
+
+<script>
+  // Carousel
+  const track = document.getElementById('carouselTrack');
+  const viewport = document.getElementById('carouselViewport');
+  const dots = document.querySelectorAll('.dot');
+  const slideCount = document.querySelectorAll('.carousel-slide').length;
+  let current = 0;
+  let autoPlayTimer;
+  let touchStartX = 0;
+  let touchDeltaX = 0;
+
+  function goToSlide(index) {
+    current = ((index % slideCount) + slideCount) % slideCount;
+    track.style.transform = `translateX(-${current * 100}%)`;
+    dots.forEach((d, i) => d.classList.toggle('active', i === current));
+  }
+
+  function nextSlide() {
+    goToSlide(current + 1);
+  }
+
+  function startAutoPlay() {
+    stopAutoPlay();
+    autoPlayTimer = setInterval(nextSlide, 3500);
+  }
+
+  function stopAutoPlay() {
+    clearInterval(autoPlayTimer);
+  }
+
+  // Dot click
+  dots.forEach(dot => {
+    dot.addEventListener('click', () => {
+      goToSlide(parseInt(dot.dataset.index));
+      startAutoPlay();
+    });
+  });
+
+  // Touch support
+  viewport.addEventListener('touchstart', (e) => {
+    touchStartX = e.touches[0].clientX;
+    touchDeltaX = 0;
+    stopAutoPlay();
+    track.style.transition = 'none';
+  }, { passive: true });
+
+  viewport.addEventListener('touchmove', (e) => {
+    touchDeltaX = e.touches[0].clientX - touchStartX;
+    const offset = -(current * viewport.offsetWidth) + touchDeltaX;
+    track.style.transform = `translateX(${offset}px)`;
+  }, { passive: true });
+
+  viewport.addEventListener('touchend', () => {
+    track.style.transition = 'transform 0.45s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+    if (touchDeltaX > 50) {
+      goToSlide(current - 1);
+    } else if (touchDeltaX < -50) {
+      goToSlide(current + 1);
+    } else {
+      goToSlide(current);
+    }
+    startAutoPlay();
+  });
+
+  // Tab click
+  document.querySelectorAll('.tab-item').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+    });
+  });
+
+  // Bottom nav click
+  document.querySelectorAll('.bottom-nav-item').forEach(item => {
+    item.addEventListener('click', () => {
+      document.querySelectorAll('.bottom-nav-item').forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
+    });
+  });
+
+  // Init
+  startAutoPlay();
+</script>
+
+</body>
+</html>
