@@ -10,6 +10,7 @@ import {
   GUIDANCE_CODE_NAMES, DANGER_TYPE_NAMES, ROUTE_OPTION_NAMES,
   LANE_ANGLE_NAMES, LANE_ANGLE_ARROWS,
 } from './tvas-parser.js';
+import { besselToWgs84 } from './coordinate.js';
 
 // ---- Layer state ---------------------------------------------------------- //
 
@@ -304,22 +305,24 @@ function renderRestAreas(lg, coords, restAreas) {
 }
 
 function renderEvChargers(lg, coords, evChargers) {
-  const { besselToWgs84 } = window.__tvasCoordHelper || {};
   for (const ev of evChargers) {
-    // Use SK coord from TVAS data for position (more accurate than VX)
     let lat, lon;
-    if (ev.locX && ev.locY) {
+
+    // Use SK coord (locX/locY) from TVAS for accurate position
+    if (ev.locX && ev.locY && ev.locX > 100000 && ev.locY > 100000) {
       const bLon = ev.locX / 360000.0;
       const bLat = ev.locY / 360000.0;
-      // Import not available here, use VX coord as fallback
-      if (ev.vxIdx < coords.length) {
-        lat = coords[ev.vxIdx].lat;
-        lon = coords[ev.vxIdx].lon;
-      } else continue;
-    } else if (ev.vxIdx < coords.length) {
+      if (bLon > 120 && bLon < 135 && bLat > 30 && bLat < 45) {
+        [lat, lon] = besselToWgs84(bLon, bLat);
+      }
+    }
+
+    // Fallback to VX coord
+    if (lat == null && ev.vxIdx > 0 && ev.vxIdx < coords.length) {
       lat = coords[ev.vxIdx].lat;
       lon = coords[ev.vxIdx].lon;
-    } else continue;
+    }
+    if (lat == null) continue;
 
     const isMust = ev.mustCharge === 1;
     const speedName = {0:'정보없음',1:'완속',2:'급속',3:'초급속'}[ev.chargeSpeed] || '';
@@ -330,28 +333,37 @@ function renderEvChargers(lg, coords, evChargers) {
     if (ev.slow) sockets.push('완속');
     if (ev.tesla) sockets.push('테슬라');
 
-    // Icon: must charge = large red-orange, others = small green
-    const size = isMust ? 32 : 24;
-    const bg = isMust ? '#f04452' : 'rgba(34,197,94,0.9)';
-    const border = isMust ? '3px solid #fff' : '1px solid #fff';
-    const shadow = isMust ? '0 3px 12px rgba(240,68,82,0.5)' : '0 1px 4px rgba(0,0,0,.4)';
-    const zOff = isMust ? 1200 : 400;
-    const label = isMust ? '⚡' : '⚡';
-    const iconHtml = `<div style="width:${size}px;height:${size}px;line-height:${size}px;text-align:center;background:${bg};border-radius:${isMust ? '50%' : '6px'};font-size:${isMust ? 16 : 12}px;box-shadow:${shadow};border:${border}">${label}</div>`;
+    // Icon: must charge = large pulsing red, others = small green
+    const size = isMust ? 38 : 26;
+    const zOff = isMust ? 1500 : 400;
+    let iconHtml;
+    if (isMust) {
+      iconHtml = `<div style="position:relative;width:${size}px;height:${size}px">
+        <div style="position:absolute;inset:0;background:rgba(240,68,82,0.25);border-radius:50%;animation:evPulse 1.5s ease-in-out infinite"></div>
+        <div style="position:absolute;inset:4px;background:#f04452;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 3px 12px rgba(240,68,82,0.6);border:2px solid #fff;color:#fff;font-weight:700">⚡</div>
+      </div>`;
+    } else {
+      iconHtml = `<div style="width:${size}px;height:${size}px;line-height:${size}px;text-align:center;background:rgba(34,197,94,0.9);border-radius:8px;font-size:13px;box-shadow:0 1px 4px rgba(0,0,0,.4);border:1px solid #fff">⚡</div>`;
+    }
 
-    let popup = `<div style="font-size:12px;line-height:1.6;max-width:300px">`;
-    popup += `<b style="font-size:14px">⚡ ${esc(ev.name || '충전소')}</b>`;
-    if (isMust) popup += ` <span style="color:#f04452;font-weight:700;font-size:12px;background:rgba(240,68,82,0.12);padding:2px 6px;border-radius:8px">필수충전</span>`;
-    popup += `<br>`;
-    popup += `POI: ${ev.poiId} | ${ev.onRoute === 0 ? '경로상' : '경로주변'}`;
-    popup += `<br>소켓: ${sockets.join(', ') || '-'}`;
-    popup += `<br>충전기: <b>${ev.availChargers}</b>/${ev.totalChargers} (${speedName})`;
-    if (ev.chargeTime) popup += `<br>충전시간: ${Math.floor(ev.chargeTime/60)}분 ${ev.chargeTime%60}초 | ${ev.chargePower}kW`;
-    if (ev.arrivalSoc) popup += `<br>도착 SoC: ${ev.arrivalSoc}% → 충전후: ${ev.expectedSoc}%`;
-    if (ev.manualStation) popup += `<br><span style="color:#fbbf24">수동충전소</span>`;
-    if (ev.isSelf) popup += ` | 셀프`;
-    popup += `<br>VX: ${ev.vxIdx} | WGS84: ${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+    let popup = `<div style="font-size:12px;line-height:1.6;max-width:320px">`;
+    popup += `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">`;
+    popup += `<span style="font-size:20px">⚡</span>`;
+    popup += `<b style="font-size:15px">${esc(ev.name || '충전소')}</b>`;
+    if (isMust) popup += ` <span style="color:#fff;background:#f04452;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">필수충전</span>`;
     popup += `</div>`;
+    popup += `<table style="width:100%;font-size:11px;line-height:1.5;border-collapse:collapse">`;
+    popup += `<tr><td style="color:#8b95a1;padding:2px 0">위치</td><td>${ev.onRoute === 0 ? '<b style="color:#3182f6">경로상</b>' : '경로주변'}</td></tr>`;
+    popup += `<tr><td style="color:#8b95a1;padding:2px 0">소켓</td><td>${sockets.join(', ') || '-'}</td></tr>`;
+    popup += `<tr><td style="color:#8b95a1;padding:2px 0">충전기</td><td><b>${ev.availChargers}</b>/${ev.totalChargers} (${speedName})</td></tr>`;
+    if (ev.chargeTime) popup += `<tr><td style="color:#8b95a1;padding:2px 0">충전시간</td><td>${Math.floor(ev.chargeTime/60)}분 ${ev.chargeTime%60}초</td></tr>`;
+    if (ev.chargePower) popup += `<tr><td style="color:#8b95a1;padding:2px 0">충전 파워</td><td>${ev.chargePower} kW</td></tr>`;
+    if (ev.arrivalSoc) popup += `<tr><td style="color:#8b95a1;padding:2px 0">SoC</td><td>도착 ${ev.arrivalSoc}% → ${ev.expectedSoc}%</td></tr>`;
+    popup += `<tr><td style="color:#8b95a1;padding:2px 0">POI</td><td>${ev.poiId}</td></tr>`;
+    popup += `<tr><td style="color:#8b95a1;padding:2px 0">좌표</td><td>${lat.toFixed(6)}, ${lon.toFixed(6)}</td></tr>`;
+    if (ev.manualStation) popup += `<tr><td style="color:#8b95a1">구분</td><td style="color:#fbbf24">수동충전소</td></tr>`;
+    if (ev.isSelf) popup += `<tr><td style="color:#8b95a1">셀프</td><td>셀프 충전</td></tr>`;
+    popup += `</table></div>`;
 
     L.marker([lat, lon], {
       icon: L.divIcon({ className: '', html: iconHtml, iconSize: [size, size], iconAnchor: [size/2, size/2] }),

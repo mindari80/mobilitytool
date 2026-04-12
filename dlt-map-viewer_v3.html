@@ -821,6 +821,12 @@
     }
     .vx-link:hover { color: #7dd3fc; }
 
+    /* EV charger pulse animation */
+    @keyframes evPulse {
+      0%, 100% { transform: scale(1); opacity: 0.6; }
+      50% { transform: scale(1.4); opacity: 0; }
+    }
+
     /* ---- Panel inner styles ---- */
     .tvas-field-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
     #tvas-url {
