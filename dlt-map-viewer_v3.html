@@ -690,64 +690,97 @@
       font-size: 16px;
     }
 
-    /* ======== TVAS Floating Popup ======== */
-    #tvas-popup-overlay {
-      display: none;
+    /* ======== TVAS Right Panel ======== */
+    #tvas-right-panel {
       position: fixed;
-      inset: 0;
-      z-index: 8000;
-      background: rgba(0,0,0,0.35);
-    }
-    #tvas-popup-overlay.visible { display: flex; align-items: center; justify-content: center; }
-
-    #tvas-popup {
+      right: -440px;
+      top: 0;
+      width: 420px;
+      height: 100vh;
       background: #111827;
-      border: 1px solid rgba(148,163,184,0.22);
-      border-radius: 14px;
-      box-shadow: 0 12px 48px rgba(0,0,0,0.6);
-      width: 580px;
-      max-width: 95vw;
-      max-height: 90vh;
+      border-left: 1px solid rgba(148,163,184,0.22);
+      box-shadow: -4px 0 24px rgba(0,0,0,0.5);
+      z-index: 5000;
       display: flex;
       flex-direction: column;
-      overflow: hidden;
+      transition: right 0.25s ease;
     }
-    #tvas-popup-header {
+    #tvas-right-panel.open { right: 0; }
+
+    #tvas-panel-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 14px 18px;
+      padding: 12px 16px;
       border-bottom: 1px solid var(--border);
-      cursor: move;
-      user-select: none;
+      flex-shrink: 0;
     }
-    #tvas-popup-header h2 {
-      font-size: 15px;
-      font-weight: 700;
-      color: var(--text);
-      margin: 0;
+    #tvas-panel-header h2 { font-size: 14px; font-weight: 700; color: var(--text); margin: 0; }
+    #tvas-panel-close {
+      background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; padding: 0 4px; line-height: 1;
     }
-    #tvas-popup-close {
-      background: none;
-      border: none;
-      color: var(--muted);
-      font-size: 20px;
-      cursor: pointer;
-      padding: 0 4px;
-      line-height: 1;
-    }
-    #tvas-popup-close:hover { color: #f87171; }
+    #tvas-panel-close:hover { color: #f87171; }
 
-    #tvas-popup-body {
-      padding: 16px 18px;
+    #tvas-panel-body {
+      padding: 12px 16px;
       overflow-y: auto;
       flex: 1;
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 10px;
     }
 
-    /* ---- Popup inner styles ---- */
+    /* ---- Waypoint badges ---- */
+    #tvas-waypoints-bar {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      min-height: 28px;
+      align-items: center;
+    }
+    .wp-badge {
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .wp-badge.depart { background: rgba(34,197,94,0.15); color: #4ade80; border: 1px solid rgba(34,197,94,0.3); }
+    .wp-badge.dest { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+    .wp-badge .wp-remove { cursor: pointer; font-size: 10px; opacity: 0.7; }
+    .wp-badge .wp-remove:hover { opacity: 1; }
+
+    /* ---- TVAS layer toggles ---- */
+    #tvas-layer-toggles {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .tvas-ltog {
+      padding: 3px 8px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: rgba(15,23,42,0.6);
+      color: var(--muted);
+      transition: all 0.15s;
+    }
+    .tvas-ltog.on { background: rgba(56,189,248,0.15); color: var(--accent); border-color: rgba(56,189,248,0.3); }
+
+    /* ---- VX clickable links ---- */
+    .vx-link {
+      color: var(--accent);
+      cursor: pointer;
+      text-decoration: underline;
+      text-decoration-style: dotted;
+    }
+    .vx-link:hover { color: #7dd3fc; }
+
+    /* ---- Panel inner styles ---- */
     .tvas-field-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
     #tvas-url {
       background: rgba(15,23,42,0.8);
@@ -1076,10 +1109,6 @@
       <input type="checkbox" data-layer="tts" checked>
       <span class="layer-dot" style="background:var(--tts)"></span>음성안내
     </label>
-    <label class="layer-row">
-      <input type="checkbox" id="tvas-layer-toggle" checked>
-      <span class="layer-dot" style="background:#a855f7"></span>경로 테스트
-    </label>
   </div>
   <!-- Bottom: analysis count + logo -->
   <div id="sidebar-bottom">
@@ -1091,48 +1120,65 @@
   </div>
 </aside>
 
-<!-- ======== TVAS Floating Popup ======== -->
-<div id="tvas-popup-overlay">
-  <div id="tvas-popup">
-    <div id="tvas-popup-header">
-      <h2>경로 요청 테스트</h2>
-      <button id="tvas-popup-close">&times;</button>
+<!-- ======== TVAS Right Panel ======== -->
+<div id="tvas-right-panel">
+  <div id="tvas-panel-header">
+    <h2>경로 요청 테스트</h2>
+    <button id="tvas-panel-close">&times;</button>
+  </div>
+  <div id="tvas-panel-body">
+    <!-- CORS notice -->
+    <details style="background:rgba(249,115,22,0.1);border:1px solid rgba(249,115,22,0.25);border-radius:8px;padding:6px 10px;font-size:10px;color:#fb923c;line-height:1.5">
+      <summary style="font-size:11px;cursor:pointer">CORS 우회 안내</summary>
+      <code style="display:block;margin-top:4px;padding:4px 6px;background:rgba(0,0,0,0.3);border-radius:4px;color:#fbbf24;font-size:10px;word-break:break-all;user-select:all">open -na "Google Chrome" --args --disable-web-security --user-data-dir=/tmp/chrome-cors</code>
+    </details>
+    <!-- Waypoints from map -->
+    <div>
+      <div class="tvas-field-label">출발지/목적지 (지도 우클릭으로 설정)</div>
+      <div id="tvas-waypoints-bar">
+        <span style="color:var(--muted);font-size:11px">설정된 지점이 없습니다</span>
+      </div>
     </div>
-    <div id="tvas-popup-body">
-      <div style="background:rgba(249,115,22,0.1);border:1px solid rgba(249,115,22,0.25);border-radius:8px;padding:8px 10px;font-size:11px;color:#fb923c;line-height:1.6">
-        CORS 제한으로 외부 서버 요청이 차단될 수 있습니다. 아래 명령으로 Chrome을 실행하세요:<br>
-        <code style="display:block;margin-top:4px;padding:4px 8px;background:rgba(0,0,0,0.3);border-radius:4px;color:#fbbf24;font-size:11px;word-break:break-all;user-select:all">open -na "Google Chrome" --args --disable-web-security --user-data-dir=/tmp/chrome-cors</code>
-      </div>
-      <div>
-        <div class="tvas-field-label">URL</div>
-        <input type="text" id="tvas-url" value="https://ntmapdev.tmap.co.kr:9443/tmap-channel/rsd/ev/route" placeholder="https://경로서버주소/path">
-      </div>
-      <div>
-        <div class="tvas-section-label">
-          <label>Headers</label>
-          <button id="tvas-add-header">+ 추가</button>
-        </div>
+    <!-- URL -->
+    <div>
+      <div class="tvas-field-label">URL</div>
+      <input type="text" id="tvas-url" value="https://ntmapdev.tmap.co.kr:9443/tmap-channel/rsd/ev/route" placeholder="https://경로서버주소/path">
+    </div>
+    <!-- Headers -->
+    <details>
+      <summary class="tvas-field-label" style="cursor:pointer;font-weight:600">Headers</summary>
+      <div style="margin-top:4px">
+        <div style="text-align:right;margin-bottom:4px"><button id="tvas-add-header" style="background:none;border:none;color:var(--accent);font-size:11px;cursor:pointer">+ 추가</button></div>
         <div id="tvas-headers" class="tvas-header-list"></div>
       </div>
-      <div>
-        <div class="tvas-section-label">
-          <label>Body (JSON)</label>
-          <button id="tvas-prettify-btn" class="tvas-sub-btn" style="padding:3px 10px;font-size:11px;border-radius:5px">정렬</button>
-        </div>
-        <textarea id="tvas-body" spellcheck="false"></textarea>
-      </div>
-      <div class="tvas-actions">
-        <button id="tvas-send-btn">요청 전송</button>
-        <button id="tvas-clear-btn" class="tvas-sub-btn">지우기</button>
-        <button id="tvas-save-resp-btn" class="tvas-sub-btn" style="display:none">응답 저장</button>
-      </div>
-      <div id="tvas-status"></div>
-      <div id="tvas-result-summary"></div>
-      <details id="tvas-response-raw" style="display:none">
-        <summary>응답 원문</summary>
-        <pre id="tvas-response-pre"></pre>
-      </details>
+    </details>
+    <!-- Body -->
+    <details open>
+      <summary class="tvas-field-label" style="cursor:pointer;font-weight:600">Body (JSON) <button id="tvas-prettify-btn" class="tvas-sub-btn" style="padding:1px 8px;font-size:10px;border-radius:4px;margin-left:8px">정렬</button></summary>
+      <textarea id="tvas-body" spellcheck="false" style="margin-top:4px"></textarea>
+    </details>
+    <!-- Actions -->
+    <div class="tvas-actions">
+      <button id="tvas-send-btn">요청 전송</button>
+      <button id="tvas-clear-btn" class="tvas-sub-btn">지우기</button>
+      <button id="tvas-save-resp-btn" class="tvas-sub-btn" style="display:none">응답 저장</button>
     </div>
+    <div id="tvas-status"></div>
+    <!-- Layer toggles -->
+    <div id="tvas-layer-toggles" style="display:none">
+      <span class="tvas-ltog on" data-tl="route">경로</span>
+      <span class="tvas-ltog on" data-tl="guidance">안내점</span>
+      <span class="tvas-ltog on" data-tl="danger">위험지역</span>
+      <span class="tvas-ltog on" data-tl="tollgate">톨게이트</span>
+      <span class="tvas-ltog on" data-tl="restArea">휴게소</span>
+      <span class="tvas-ltog on" data-tl="lane">차로</span>
+    </div>
+    <!-- Result -->
+    <div id="tvas-result-summary"></div>
+    <details id="tvas-response-raw" style="display:none">
+      <summary>응답 원문</summary>
+      <pre id="tvas-response-pre"></pre>
+    </details>
   </div>
 </div>
 
@@ -1157,47 +1203,21 @@
 
 <!-- TVAS Route Request Test Module -->
 <script type="module">
-import { parseTvas, resolveVertexCoordinates, resolvePointInTile } from './js/tvas-parser.js';
-import { renderTvasRoute, clearTvasRoute, getTvasLayerGroup } from './js/tvas-renderer.js';
+import { parseTvas, resolveVertexCoordinates } from './js/tvas-parser.js';
+import { renderTvasRoute, clearTvasRoute, getTvasLayers, toggleTvasLayer } from './js/tvas-renderer.js';
 import { getMap } from './js/map-viewer.js';
+import { wgs84ToSkCoord } from './js/coordinate.js';
 
-// ---- Popup open/close ---- //
-const tvasMenuBtn     = document.getElementById('tvas-menu-btn');
-const tvasOverlay     = document.getElementById('tvas-popup-overlay');
-const tvasPopupClose  = document.getElementById('tvas-popup-close');
+// ---- Right panel open/close ---- //
+const tvasMenuBtn    = document.getElementById('tvas-menu-btn');
+const tvasPanel      = document.getElementById('tvas-right-panel');
+const tvasPanelClose = document.getElementById('tvas-panel-close');
 
-tvasMenuBtn.addEventListener('click', () => tvasOverlay.classList.add('visible'));
-tvasPopupClose.addEventListener('click', () => tvasOverlay.classList.remove('visible'));
-tvasOverlay.addEventListener('click', (e) => {
-  if (e.target === tvasOverlay) tvasOverlay.classList.remove('visible');
-});
+tvasMenuBtn.addEventListener('click', () => { applyWaypointsToBody(); tvasPanel.classList.add('open'); });
+tvasPanelClose.addEventListener('click', () => tvasPanel.classList.remove('open'));
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && tvasOverlay.classList.contains('visible')) {
-    tvasOverlay.classList.remove('visible');
-  }
+  if (e.key === 'Escape' && tvasPanel.classList.contains('open')) tvasPanel.classList.remove('open');
 });
-
-// ---- Draggable popup ---- //
-{
-  const hdr = document.getElementById('tvas-popup-header');
-  const popup = document.getElementById('tvas-popup');
-  let dragging = false, dx = 0, dy = 0;
-  hdr.addEventListener('mousedown', (e) => {
-    if (e.target.tagName === 'BUTTON') return;
-    dragging = true;
-    const rect = popup.getBoundingClientRect();
-    dx = e.clientX - rect.left;
-    dy = e.clientY - rect.top;
-    popup.style.position = 'fixed';
-    popup.style.margin = '0';
-  });
-  document.addEventListener('mousemove', (e) => {
-    if (!dragging) return;
-    popup.style.left = (e.clientX - dx) + 'px';
-    popup.style.top = (e.clientY - dy) + 'px';
-  });
-  document.addEventListener('mouseup', () => { dragging = false; });
-}
 
 // ---- DOM refs ---- //
 const tvasUrl        = document.getElementById('tvas-url');
@@ -1211,10 +1231,118 @@ const tvasStatus     = document.getElementById('tvas-status');
 const tvasSummary    = document.getElementById('tvas-result-summary');
 const tvasRespRaw    = document.getElementById('tvas-response-raw');
 const tvasRespPre    = document.getElementById('tvas-response-pre');
-const tvasLayerToggle = document.getElementById('tvas-layer-toggle');
 const tvasSaveRespBtn = document.getElementById('tvas-save-resp-btn');
+const tvasWpBar      = document.getElementById('tvas-waypoints-bar');
+const tvasLayerToggles = document.getElementById('tvas-layer-toggles');
 
-let lastResponseJson = null;  // 마지막 응답 원본 저장
+let lastResponseJson = null;
+let lastCoords = null;  // 마지막 파싱된 좌표 (VX 클릭 이동용)
+
+// ---- Waypoint state (from map long-click) ---- //
+const routeWaypoints = { depart: null, dest: null };
+let wpMarkers = { depart: null, dest: null };
+
+function wpIconHtml(label, color) {
+  return '<div style="width:28px;height:28px;line-height:28px;text-align:center;background:'+color+';color:#fff;border-radius:50%;font-size:14px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.4);border:2px solid #fff">'+label+'</div>';
+}
+
+function updateWpBar() {
+  let html = '';
+  if (routeWaypoints.depart) {
+    const d = routeWaypoints.depart;
+    html += '<span class="wp-badge depart">S ' + d.lat.toFixed(5) + ',' + d.lon.toFixed(5) + ' <span class="wp-remove" onclick="window._removeWp(\'depart\')">&times;</span></span>';
+  }
+  if (routeWaypoints.dest) {
+    const d = routeWaypoints.dest;
+    html += '<span class="wp-badge dest">E ' + d.lat.toFixed(5) + ',' + d.lon.toFixed(5) + ' <span class="wp-remove" onclick="window._removeWp(\'dest\')">&times;</span></span>';
+  }
+  if (!html) html = '<span style="color:var(--muted);font-size:11px">지도 우클릭으로 출발지/목적지를 설정하세요</span>';
+  tvasWpBar.innerHTML = html;
+}
+
+window._removeWp = function(type) {
+  routeWaypoints[type] = null;
+  const map = getMap();
+  if (map && wpMarkers[type]) { map.removeLayer(wpMarkers[type]); wpMarkers[type] = null; }
+  updateWpBar();
+};
+
+function setWaypoint(type, lat, lon) {
+  routeWaypoints[type] = { lat, lon };
+  const map = getMap();
+  if (!map) return;
+  if (wpMarkers[type]) map.removeLayer(wpMarkers[type]);
+  const label = type === 'depart' ? 'S' : 'E';
+  const color = type === 'depart' ? '#22c55e' : '#ef4444';
+  wpMarkers[type] = L.marker([lat, lon], {
+    icon: L.divIcon({ className: '', html: wpIconHtml(label, color), iconSize: [28, 28], iconAnchor: [14, 14] }),
+    zIndexOffset: 2000,
+  }).addTo(map);
+  updateWpBar();
+}
+
+function applyWaypointsToBody() {
+  try {
+    const body = JSON.parse(tvasBody.value);
+    if (routeWaypoints.depart) {
+      const sk = wgs84ToSkCoord(routeWaypoints.depart.lat, routeWaypoints.depart.lon);
+      body.departXPos = sk[0];
+      body.departYPos = sk[1];
+    }
+    if (routeWaypoints.dest) {
+      const sk = wgs84ToSkCoord(routeWaypoints.dest.lat, routeWaypoints.dest.lon);
+      body.destXPos = sk[0];
+      body.destYPos = sk[1];
+    }
+    tvasBody.value = JSON.stringify(body, null, 2);
+  } catch (e) { /* body not valid JSON, skip */ }
+}
+
+// ---- Map long-click / right-click: set departure/destination ---- //
+function setupMapContextMenu() {
+  const map = getMap();
+  if (!map) return;
+  // Override the default contextmenu handler
+  map.off('contextmenu');
+  map.on('contextmenu', e => {
+    L.DomEvent.preventDefault(e.originalEvent);
+    const { lat, lng } = e.latlng;
+    const sk = wgs84ToSkCoord(lat, lng);
+    const content = document.createElement('div');
+    content.style.cssText = 'font-size:12px;line-height:1.8';
+    content.innerHTML = '<b>좌표 정보</b><br>' +
+      'WGS84: ' + lat.toFixed(6) + ', ' + lng.toFixed(6) + '<br>' +
+      'SK: ' + sk[0] + ', ' + sk[1] + '<br>' +
+      '<div style="display:flex;gap:4px;margin-top:6px">' +
+      '<button id="_wp_dep" style="flex:1;padding:5px;background:#22c55e;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">출발지 설정</button>' +
+      '<button id="_wp_dst" style="flex:1;padding:5px;background:#ef4444;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">목적지 설정</button>' +
+      '</div>';
+    const popup = L.popup({ maxWidth: 280 }).setLatLng(e.latlng).setContent(content).openOn(map);
+    content.querySelector('#_wp_dep').addEventListener('click', () => { setWaypoint('depart', lat, lng); map.closePopup(popup); });
+    content.querySelector('#_wp_dst').addEventListener('click', () => { setWaypoint('dest', lat, lng); map.closePopup(popup); });
+  });
+}
+// Retry setup until map is ready
+const _cmInterval = setInterval(() => { if (getMap()) { setupMapContextMenu(); clearInterval(_cmInterval); } }, 500);
+
+// ---- Layer toggles ---- //
+tvasLayerToggles.querySelectorAll('.tvas-ltog').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const key = btn.dataset.tl;
+    const isOn = btn.classList.toggle('on');
+    const map = getMap();
+    if (map) toggleTvasLayer(map, key, isOn);
+  });
+});
+
+// ---- VX click → map fly ---- //
+window._flyToVx = function(idx) {
+  if (!lastCoords || !lastCoords[idx]) return;
+  const map = getMap();
+  if (!map) return;
+  const c = lastCoords[idx];
+  map.setView([c.lat, c.lon], 17, { animate: true });
+};
 
 function esc(s) {
   return String(s ?? '')
@@ -1388,8 +1516,10 @@ tvasClearBtn.addEventListener('click', () => {
   tvasRespRaw.style.display = 'none';
   tvasRespPre.textContent = '';
   tvasSaveRespBtn.style.display = 'none';
+  tvasLayerToggles.style.display = 'none';
   lastResponseJson = null;
   lastBinaryResponse = null;
+  lastCoords = null;
   setStatus('');
 });
 
@@ -1413,18 +1543,6 @@ tvasSaveRespBtn.addEventListener('click', () => {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(a.href);
-});
-
-// ---- Layer toggle ---- //
-tvasLayerToggle.addEventListener('change', () => {
-  const lg = getTvasLayerGroup();
-  const map = getMap();
-  if (!lg || !map) return;
-  if (tvasLayerToggle.checked) {
-    if (!map.hasLayer(lg)) map.addLayer(lg);
-  } else {
-    if (map.hasLayer(lg)) map.removeLayer(lg);
-  }
 });
 
 // ---- Send request ---- //
@@ -1645,8 +1763,12 @@ tvasSendBtn.addEventListener('click', async () => {
 
     const { summary } = renderTvasRoute(map, tvasResult, coords, 0);
 
-    // Ensure layer toggle is checked
-    tvasLayerToggle.checked = true;
+    // Save coords for VX click navigation
+    lastCoords = coords;
+
+    // Show layer toggles
+    tvasLayerToggles.style.display = 'flex';
+    tvasLayerToggles.querySelectorAll('.tvas-ltog').forEach(b => b.classList.add('on'));
 
     // Summary + section details
     tvasSummary.innerHTML = buildSummaryHtml(summary, elapsed, tvasResult, coords, respInfo);
@@ -1687,13 +1809,14 @@ function sectionDetail(title, id, count, contentHtml) {
 
 function vx(idx, coords) {
   const c = coords[idx];
-  return c ? `VX${idx}(${c.lat.toFixed(5)},${c.lon.toFixed(5)})` : `VX${idx}`;
+  if (!c) return `VX${idx}`;
+  return `<span class="vx-link" onclick="window._flyToVx(${idx})">VX${idx}(${c.lat.toFixed(5)},${c.lon.toFixed(5)})</span>`;
 }
 function vxRange(start, end, coords) {
   const s = coords[start], e = coords[Math.min(end, coords.length-1)];
   const sp = s ? `(${s.lat.toFixed(5)},${s.lon.toFixed(5)})` : '';
   const ep = e ? `(${e.lat.toFixed(5)},${e.lon.toFixed(5)})` : '';
-  return `VX${start}${sp}~VX${end}${ep}`;
+  return `<span class="vx-link" onclick="window._flyToVx(${start})">VX${start}${sp}</span>~<span class="vx-link" onclick="window._flyToVx(${end})">VX${end}${ep}</span>`;
 }
 
 function buildSummaryHtml(s, elapsed, tvasResult, coords, respInfo) {
