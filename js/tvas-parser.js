@@ -558,8 +558,52 @@ function parseIncidents(dv, offset, size, charset) {
 }
 
 function parseRouteSummary(dv, offset, size, charset) {
-  // RS7: 경로요약정보 - 간략 파싱
-  return { raw: true, offset, size };
+  // RS7 header: 48 bytes
+  const count = dv.getUint16(offset, true);
+  const dataType = dv.getUint8(offset + 3);
+  const trafficTime = readAscii(dv, offset + 8, 12);
+  const tollFare10 = dv.getUint16(offset + 20, true);
+  const predictType = dv.getUint8(offset + 23);
+  const predictTime = readAscii(dv, offset + 24, 12);
+  const nameBlobSize = dv.getInt32(offset + 36, true);
+  const roadNameBlobSize = dv.getInt32(offset + 40, true);
+  const roadAttr = dv.getUint8(offset + 44);
+  const roadNameCount = dv.getUint16(offset + 45, true);
+  const ecoSaving = dv.getUint8(offset + 47);
+
+  const dataStart = offset + 48;
+  const items = [];
+  for (let i = 0; i < count; i++) {
+    const base = dataStart + i * 32;
+    if (base + 32 > offset + size) break;
+    const nameOffset = dv.getInt32(base, true);
+    const distance = dv.getInt32(base + 4, true);
+    const time = dv.getInt32(base + 8, true);
+    const speed = dv.getUint8(base + 12);
+    const congestion = String.fromCharCode(dv.getUint8(base + 13));
+    const startVxIdx = dv.getUint16(base + 14, true);
+    const endVxIdx = dv.getUint16(base + 16, true);
+    const narrowRoad = dv.getUint8(base + 18);
+    const turnCode = dv.getUint8(base + 19);
+    const energy = dv.getInt32(base + 20, true);
+    const manualStation = dv.getUint8(base + 24);
+
+    // Read name from blob
+    const blobStart = dataStart + count * 32;
+    let name = '';
+    if (nameOffset >= 0 && blobStart + nameOffset < offset + size) {
+      name = readString(dv, blobStart + nameOffset, Math.min(200, offset + size - blobStart - nameOffset), charset);
+    }
+    items.push({
+      name, distance, time, speed, congestion,
+      startVxIdx, endVxIdx, narrowRoad, turnCode, energy, manualStation,
+    });
+  }
+
+  return {
+    count, trafficTime, tollFare: tollFare10 * 10, predictType, predictTime,
+    ecoSaving, roadAttr, items,
+  };
 }
 
 function parseTruckRestriction(dv, offset, size, type) {

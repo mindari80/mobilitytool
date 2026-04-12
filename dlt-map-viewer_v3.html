@@ -1218,6 +1218,7 @@
       <span class="tvas-ltog on" data-tl="tollgate">톨게이트</span>
       <span class="tvas-ltog on" data-tl="restArea">휴게소</span>
       <span class="tvas-ltog on" data-tl="lane">차로</span>
+      <span class="tvas-ltog on" data-tl="evCharger">충전소</span>
     </div>
     <!-- Result -->
     <div id="tvas-result-summary"></div>
@@ -2200,6 +2201,7 @@ function buildSummaryHtml(s, elapsed, tvasResult, coords, respInfo) {
   // ---- ES3: 전기차 충전소 ---- //
   if (tvasResult.evChargers && tvasResult.evChargers.length > 0) {
     const speedName = (s) => ({0:'정보없음',1:'완속',2:'급속',3:'초급속'}[s] || s);
+    const mustCount = tvasResult.evChargers.filter(e => e.mustCharge).length;
     const rows = tvasResult.evChargers.map((ev, i) => {
       let sockets = [];
       if (ev.dcCha) sockets.push('DC차데모');
@@ -2207,15 +2209,22 @@ function buildSummaryHtml(s, elapsed, tvasResult, coords, respInfo) {
       if (ev.dcCombo) sockets.push('DC콤보');
       if (ev.slow) sockets.push('완속');
       if (ev.tesla) sockets.push('테슬라');
-      return `<div style="padding:3px 0;border-bottom:1px solid rgba(148,163,184,0.08)">
-        [${i}] ${vx(ev.vxIdx, coords)} <b>"${esc(ev.name)}"</b><br>
-        <span style="color:var(--muted)">POI:${ev.poiId} | ${ev.onRoute===0?'경로상':'경로주변'} | ${ev.mustCharge?'<span style="color:#f87171">필수충전</span>':'일반'}</span><br>
-        <span style="color:var(--muted)">소켓: ${sockets.join(', ') || '-'} | 충전기: ${ev.availChargers}/${ev.totalChargers} | 속도: ${speedName(ev.chargeSpeed)}</span>
-        ${ev.chargeTime ? '<br><span style="color:var(--muted)">충전시간: '+(ev.chargeTime)+'초 | 파워: '+ev.chargePower+'kW | 도착SoC: '+ev.arrivalSoc+'% → '+ev.expectedSoc+'%</span>' : ''}
-        ${ev.manualStation ? '<br><span style="color:#fbbf24">수동충전소</span>' : ''}
+      const isMust = ev.mustCharge === 1;
+      const rowBg = isMust ? 'background:rgba(240,68,82,0.08);border-left:3px solid #f04452;padding-left:8px;margin-left:-4px;' : '';
+      return `<div style="padding:6px 0;border-bottom:1px solid rgba(148,163,184,0.08);${rowBg}">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:${isMust?16:13}px">${isMust?'&#9889;':'&#9889;'}</span>
+          <b style="${isMust?'color:#f04452;font-size:14px':'font-size:12px'}">${esc(ev.name)}</b>
+          ${isMust ? '<span style="color:#fff;background:#f04452;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:700">필수충전</span>' : ''}
+        </div>
+        ${vx(ev.vxIdx, coords)} | ${ev.onRoute===0?'경로상':'경로주변'} | POI:${ev.poiId}<br>
+        소켓: ${sockets.join(', ') || '-'} | 충전기: <b>${ev.availChargers}</b>/${ev.totalChargers} | ${speedName(ev.chargeSpeed)}
+        ${ev.chargeTime ? '<br>충전: '+Math.floor(ev.chargeTime/60)+'분 | '+ev.chargePower+'kW | SoC '+ev.arrivalSoc+'%→'+ev.expectedSoc+'%' : ''}
+        ${ev.manualStation ? ' | <span style="color:#fbbf24">수동</span>' : ''}${ev.isSelf ? ' | 셀프' : ''}
       </div>`;
     }).join('');
-    html += sectionDetail('전기차 충전소', 'ES3', tvasResult.evChargers.length, rows);
+    const titleExtra = mustCount > 0 ? ` <span style="color:#f04452;font-weight:700">필수 ${mustCount}개</span>` : '';
+    html += sectionDetail('전기차 충전소' + titleExtra, 'ES3', tvasResult.evChargers.length, rows);
   }
 
   // ---- LT2: TSD링크교통정보 ---- //
@@ -2288,8 +2297,28 @@ function buildSummaryHtml(s, elapsed, tvasResult, coords, respInfo) {
   }
 
   // ---- RS7: 경로요약 ---- //
-  if (tvasResult.routeSummary) {
-    html += sectionDetail('경로요약', 'RS7', 1, '<span style="color:var(--muted)">데이터 크기: ' + tvasResult.routeSummary.size + ' bytes</span>');
+  if (tvasResult.routeSummary && tvasResult.routeSummary.items) {
+    const rs = tvasResult.routeSummary;
+    const congName = (c) => ({'0':'정보없음','1':'원활','2':'서행','4':'정체'}[c] || c);
+    const predictName = (t) => ({1:'도착시간예측',2:'출발시간예측'}[t] || t);
+    const narrowName = (n) => ({0:'정보없음',1:'세도로',2:'비포장',3:'세도로+비포장'}[n] || n);
+    let rsHeader = `<div style="padding:4px 0;margin-bottom:6px;font-size:12px;line-height:1.6">`;
+    rsHeader += `교통정보 시간: ${rs.trafficTime || '-'}<br>`;
+    rsHeader += `톨게이트 요금: ${rs.tollFare ? rs.tollFare.toLocaleString() + '원' : '-'}<br>`;
+    rsHeader += `${predictName(rs.predictType)}: ${rs.predictTime || '-'}<br>`;
+    if (rs.ecoSaving) rsHeader += `에코 저감률: ${rs.ecoSaving}%<br>`;
+    rsHeader += `</div>`;
+    const rows = rs.items.map((item, i) =>
+      `<div style="padding:4px 0;border-bottom:1px solid rgba(148,163,184,0.08)">
+        <b>[${i}] ${esc(item.name)}</b><br>
+        ${vxRange(item.startVxIdx, item.endVxIdx, coords)}<br>
+        거리: ${(item.distance/1000).toFixed(1)}km | 시간: ${Math.floor(item.time/60)}분 | 속도: ${item.speed}km/h | 혼잡: ${congName(item.congestion)}
+        ${item.energy ? '<br>에너지: ' + item.energy + 'W' : ''}
+        ${item.narrowRoad ? '<br>도로: ' + narrowName(item.narrowRoad) : ''}
+        ${item.turnCode === 160 ? '<br><span style="color:#f04452;font-weight:600">충전소 경유' + (item.manualStation ? ' (수동)' : '') + '</span>' : ''}
+      </div>`
+    ).join('');
+    html += sectionDetail('경로요약', 'RS7', rs.items.length, rsHeader + rows);
   }
 
   return html;

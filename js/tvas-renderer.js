@@ -20,6 +20,7 @@ let tvasLayers = {
   tollgate: null,   // 톨게이트
   restArea: null,   // 휴게소
   lane: null,       // 차로안내
+  evCharger: null,  // 전기차 충전소
 };
 
 // ---- Color schemes -------------------------------------------------------- //
@@ -147,7 +148,7 @@ export function renderTvasRoute(map, tvasResult, resolvedCoords, routeIndex = 0)
   clearTvasRoute(map);
 
   const { header, roads, guidancePoints, dangerAreas, tollGates, restAreas,
-          roadNames, directionNames, intersectionNames, laneGuidance } = tvasResult;
+          roadNames, directionNames, intersectionNames, laneGuidance, evChargers } = tvasResult;
 
   // Create separate layer groups
   tvasLayers.route = L.layerGroup();
@@ -156,6 +157,7 @@ export function renderTvasRoute(map, tvasResult, resolvedCoords, routeIndex = 0)
   tvasLayers.tollgate = L.layerGroup();
   tvasLayers.restArea = L.layerGroup();
   tvasLayers.lane = L.layerGroup();
+  tvasLayers.evCharger = L.layerGroup();
 
   if (resolvedCoords.length > 0) {
     renderRoutePolylines(tvasLayers.route, resolvedCoords, roads);
@@ -165,6 +167,7 @@ export function renderTvasRoute(map, tvasResult, resolvedCoords, routeIndex = 0)
     if (tollGates && tollGates.length > 0) renderTollGates(tvasLayers.tollgate, resolvedCoords, tollGates);
     if (restAreas && restAreas.length > 0) renderRestAreas(tvasLayers.restArea, resolvedCoords, restAreas);
     if (laneGuidance && laneGuidance.length > 0) renderLaneGuidance(tvasLayers.lane, resolvedCoords, laneGuidance);
+    if (evChargers && evChargers.length > 0) renderEvChargers(tvasLayers.evCharger, resolvedCoords, evChargers);
   }
 
   // Add all layers to map
@@ -297,6 +300,63 @@ function renderRestAreas(lg, coords, restAreas) {
     L.marker([c.lat, c.lon], {
       icon: L.divIcon({ className: '', html: `<div style="width:24px;height:24px;line-height:24px;text-align:center;background:rgba(34,197,94,0.9);border-radius:6px;font-size:13px;box-shadow:0 1px 4px rgba(0,0,0,.4);border:1px solid #fff">🅿</div>`, iconSize: [24, 24], iconAnchor: [12, 12] }),
     }).bindPopup(popup, { maxWidth: 300 }).addTo(lg);
+  }
+}
+
+function renderEvChargers(lg, coords, evChargers) {
+  const { besselToWgs84 } = window.__tvasCoordHelper || {};
+  for (const ev of evChargers) {
+    // Use SK coord from TVAS data for position (more accurate than VX)
+    let lat, lon;
+    if (ev.locX && ev.locY) {
+      const bLon = ev.locX / 360000.0;
+      const bLat = ev.locY / 360000.0;
+      // Import not available here, use VX coord as fallback
+      if (ev.vxIdx < coords.length) {
+        lat = coords[ev.vxIdx].lat;
+        lon = coords[ev.vxIdx].lon;
+      } else continue;
+    } else if (ev.vxIdx < coords.length) {
+      lat = coords[ev.vxIdx].lat;
+      lon = coords[ev.vxIdx].lon;
+    } else continue;
+
+    const isMust = ev.mustCharge === 1;
+    const speedName = {0:'정보없음',1:'완속',2:'급속',3:'초급속'}[ev.chargeSpeed] || '';
+    let sockets = [];
+    if (ev.dcCha) sockets.push('DC차데모');
+    if (ev.ac3) sockets.push('AC3상');
+    if (ev.dcCombo) sockets.push('DC콤보');
+    if (ev.slow) sockets.push('완속');
+    if (ev.tesla) sockets.push('테슬라');
+
+    // Icon: must charge = large red-orange, others = small green
+    const size = isMust ? 32 : 24;
+    const bg = isMust ? '#f04452' : 'rgba(34,197,94,0.9)';
+    const border = isMust ? '3px solid #fff' : '1px solid #fff';
+    const shadow = isMust ? '0 3px 12px rgba(240,68,82,0.5)' : '0 1px 4px rgba(0,0,0,.4)';
+    const zOff = isMust ? 1200 : 400;
+    const label = isMust ? '⚡' : '⚡';
+    const iconHtml = `<div style="width:${size}px;height:${size}px;line-height:${size}px;text-align:center;background:${bg};border-radius:${isMust ? '50%' : '6px'};font-size:${isMust ? 16 : 12}px;box-shadow:${shadow};border:${border}">${label}</div>`;
+
+    let popup = `<div style="font-size:12px;line-height:1.6;max-width:300px">`;
+    popup += `<b style="font-size:14px">⚡ ${esc(ev.name || '충전소')}</b>`;
+    if (isMust) popup += ` <span style="color:#f04452;font-weight:700;font-size:12px;background:rgba(240,68,82,0.12);padding:2px 6px;border-radius:8px">필수충전</span>`;
+    popup += `<br>`;
+    popup += `POI: ${ev.poiId} | ${ev.onRoute === 0 ? '경로상' : '경로주변'}`;
+    popup += `<br>소켓: ${sockets.join(', ') || '-'}`;
+    popup += `<br>충전기: <b>${ev.availChargers}</b>/${ev.totalChargers} (${speedName})`;
+    if (ev.chargeTime) popup += `<br>충전시간: ${Math.floor(ev.chargeTime/60)}분 ${ev.chargeTime%60}초 | ${ev.chargePower}kW`;
+    if (ev.arrivalSoc) popup += `<br>도착 SoC: ${ev.arrivalSoc}% → 충전후: ${ev.expectedSoc}%`;
+    if (ev.manualStation) popup += `<br><span style="color:#fbbf24">수동충전소</span>`;
+    if (ev.isSelf) popup += ` | 셀프`;
+    popup += `<br>VX: ${ev.vxIdx} | WGS84: ${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+    popup += `</div>`;
+
+    L.marker([lat, lon], {
+      icon: L.divIcon({ className: '', html: iconHtml, iconSize: [size, size], iconAnchor: [size/2, size/2] }),
+      zIndexOffset: zOff,
+    }).bindPopup(popup, { maxWidth: 320 }).addTo(lg);
   }
 }
 
