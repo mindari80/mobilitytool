@@ -1220,14 +1220,24 @@ function setStatus(msg, type = '') {
 }
 
 // ---- Default headers ---- //
+function nowReqTime() {
+  const d = new Date();
+  return d.getFullYear().toString() +
+    String(d.getMonth()+1).padStart(2,'0') +
+    String(d.getDate()).padStart(2,'0') +
+    String(d.getHours()).padStart(2,'0') +
+    String(d.getMinutes()).padStart(2,'0') +
+    String(d.getSeconds()).padStart(2,'0');
+}
+
 const DEFAULT_HEADERS = [
   ['Accept', 'application/json'],
-  ['CIH', ''],
-  ['Client_ReqTime', ''],
+  ['CIH', '582079726'],
+  ['Client_ReqTime', () => nowReqTime()],
   ['Connection', 'close'],
   ['Content-Type', 'application/json'],
   ['Network-Type', 'WIFI'],
-  ['Nonce', ''],
+  ['Nonce', '858416984'],
   ['Requester', 'CLIENT_SSL'],
 ];
 
@@ -1247,7 +1257,7 @@ function addHeaderRow(key = '', value = '') {
 
 function initHeaders() {
   tvasHeaders.innerHTML = '';
-  DEFAULT_HEADERS.forEach(([k, v]) => addHeaderRow(k, v));
+  DEFAULT_HEADERS.forEach(([k, v]) => addHeaderRow(k, typeof v === 'function' ? v() : v));
 }
 
 initHeaders();
@@ -1388,6 +1398,14 @@ tvasLayerToggle.addEventListener('change', () => {
 tvasSendBtn.addEventListener('click', async () => {
   const url = tvasUrl.value.trim();
   if (!url) { setStatus('URL을 입력하세요.', 'error'); return; }
+
+  // Auto-refresh Client_ReqTime to current time
+  tvasHeaders.querySelectorAll('.tvas-header-row').forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    if (inputs[0].value.trim() === 'Client_ReqTime') {
+      inputs[1].value = nowReqTime();
+    }
+  });
 
   // Collect headers
   const headers = {};
