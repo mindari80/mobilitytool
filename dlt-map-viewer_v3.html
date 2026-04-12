@@ -1099,6 +1099,10 @@
       <button id="tvas-popup-close">&times;</button>
     </div>
     <div id="tvas-popup-body">
+      <div style="background:rgba(249,115,22,0.1);border:1px solid rgba(249,115,22,0.25);border-radius:8px;padding:8px 10px;font-size:11px;color:#fb923c;line-height:1.6">
+        CORS 제한으로 외부 서버 요청이 차단될 수 있습니다. 아래 명령으로 Chrome을 실행하세요:<br>
+        <code style="display:block;margin-top:4px;padding:4px 8px;background:rgba(0,0,0,0.3);border-radius:4px;color:#fbbf24;font-size:11px;word-break:break-all;user-select:all">open -na "Google Chrome" --args --disable-web-security --user-data-dir=/tmp/chrome-cors</code>
+      </div>
       <div>
         <div class="tvas-field-label">URL</div>
         <input type="text" id="tvas-url" value="https://ntmapdev.tmap.co.kr:9443/tmap-channel/rsd/ev/route" placeholder="https://경로서버주소/path">
