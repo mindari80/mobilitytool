@@ -1649,7 +1649,7 @@ tvasSendBtn.addEventListener('click', async () => {
     tvasLayerToggle.checked = true;
 
     // Summary + section details
-    tvasSummary.innerHTML = buildSummaryHtml(summary, elapsed, tvasResult, coords);
+    tvasSummary.innerHTML = buildSummaryHtml(summary, elapsed, tvasResult, coords, respInfo);
 
     setStatus(`파싱 완료: ${coords.length}개 보간점, ${tvasResult.roads.length}개 도로구간 (${elapsed}ms)`, 'ok');
 
@@ -1685,11 +1685,12 @@ function sectionDetail(title, id, count, contentHtml) {
   </details>`;
 }
 
-function buildSummaryHtml(s, elapsed, tvasResult, coords) {
+function buildSummaryHtml(s, elapsed, tvasResult, coords, respInfo) {
   const fmt = s.formatDistFn, fmtT = s.formatTimeFn;
 
   // ---- Header summary ---- //
-  let html = sr('경로 옵션', s.routeOption) +
+  let html = sr('Session ID', respInfo?.sessionId || '-') +
+    sr('경로 옵션', s.routeOption) +
     sr('경로 타입', s.routeType) +
     sr('총 거리', fmt(s.totalDistance)) +
     sr('총 시간', fmtT(s.totalTime)) +
