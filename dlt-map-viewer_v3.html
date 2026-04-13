@@ -2129,58 +2129,61 @@ function buildSummaryHtml(s, elapsed, tvasResult, coords, respInfo) {
     sr('EV 도달', s.evReachable === 1 ? '가능' : s.evReachable === 0 ? '불가능' : '-') +
     sr('응답 시간', elapsed + 'ms');
 
-  // ---- RS7: 경로요약 (헤더 영역) ---- //
+  // ---- RS7: 경로요약 ---- //
   if (tvasResult.routeSummary && tvasResult.routeSummary.items) {
     const rs = tvasResult.routeSummary;
     const congName = (c) => ({'0':'정보없음','1':'원활','2':'서행','4':'정체'}[c] || c);
     const predictName = (t) => ({1:'도착시간예측',2:'출발시간예측'}[t] || t);
     const narrowName = (n) => ({0:'정보없음',1:'세도로',2:'비포장',3:'세도로+비포장'}[n] || n);
 
-    // 전체 경로 요약 정보
-    const totalDist = rs.items.reduce((s, it) => s + it.distance, 0);
-    const totalTime = rs.items.reduce((s, it) => s + it.time, 0);
-    html += `<div style="margin:8px 0 4px;padding:8px 10px;border-radius:8px;background:rgba(49,130,246,0.08);border:1px solid rgba(49,130,246,0.18)">
-      <div style="font-size:11px;font-weight:700;color:var(--accent);margin-bottom:6px">📋 경로 요약 <span style="font-weight:400;color:var(--muted);font-size:10px">(RS7)</span></div>`;
-    const controlName = (c) => ({0:'통제 없음',1:'사고',2:'공사',3:'행사'}[c] || c);
-    html += sr('교통정보 시간', rs.trafficTime || '-');
-    html += sr('톨게이트 요금', rs.tollFare ? rs.tollFare.toLocaleString() + '원' : '-');
-    html += sr(predictName(rs.predictType), rs.predictTime || '-');
-    if (rs.ecoSaving) html += sr('에코 저감률', rs.ecoSaving + '%');
-    if (rs.controlCode) html += sr('통제구분', `<span style="color:#f04452;font-weight:600">${controlName(rs.controlCode)}</span>`);
+    let rs7Html = '';
+    // 헤더 요약
+    rs7Html += `<div style="padding:4px 0;margin-bottom:6px;border-bottom:1px solid rgba(148,163,184,0.15);font-size:10px;color:var(--muted);line-height:1.6">
+      InfoID: <b>${esc(rs.infoId)}</b> | 데이터타입: ${rs.dataType}<br>
+      교통정보시간: <b>${rs.trafficTime || '-'}</b> | 톨게이트: ${rs.tollFare ? rs.tollFare.toLocaleString() + '원' : '-'}<br>
+      ${predictName(rs.predictType)}: ${rs.predictTime || '-'}
+      ${rs.ecoSaving ? ' | Eco저감: ' + rs.ecoSaving + '%' : ''}
+      ${rs.roadAttr ? ' | 도로속성: ' + rs.roadAttr : ''}
+      <br>명칭blob: ${rs.nameBlobSize}B | 도로명blob: ${rs.roadNameBlobSize}B | 도로명수: ${rs.roadNameCount}
+    </div>`;
 
-    // 구간별 요약 테이블
-    html += `<div style="margin-top:6px;font-size:10px">`;
-    rs.items.forEach((item, i) => {
+    // 구간별 상세
+    rs7Html += rs.items.map((item, i) => {
       const dist = (item.distance / 1000).toFixed(1) + 'km';
-      const time = Math.floor(item.time / 60) + '분';
+      const timeSec = item.time;
+      const timeStr = timeSec >= 60 ? Math.floor(timeSec / 60) + '분 ' + (timeSec % 60) + '초' : timeSec + '초';
       const cong = congName(item.congestion);
       const congColor = {'원활':'#4ade80','서행':'#fbbf24','정체':'#f87171'}[cong] || 'var(--muted)';
-      html += `<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid rgba(148,163,184,0.08)">
-        <span style="min-width:18px;text-align:right;color:var(--muted)">${i}</span>
-        <span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)">${esc(item.name || '-')}</span>
-        <span style="color:var(--muted);white-space:nowrap">${dist}</span>
-        <span style="color:var(--muted);white-space:nowrap">${time}</span>
-        <span style="color:${congColor};font-weight:600;min-width:32px;text-align:center">${cong}</span>
-        ${item.energy ? '<span style="color:#a78bfa;white-space:nowrap">' + item.energy + 'W</span>' : ''}
-        ${item.turnCode === 160 ? '<span style="color:#f04452;font-weight:600">⚡충전</span>' : ''}
+      return `<div style="padding:4px 0;border-bottom:1px solid rgba(148,163,184,0.08)">
+        <div style="display:flex;align-items:center;gap:6px">
+          <b style="color:var(--accent)">[${i}]</b>
+          <span style="flex:1;color:var(--text);font-weight:600">${esc(item.name || '-')}</span>
+          <span style="color:${congColor};font-weight:600">${cong}</span>
+        </div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px">
+          ${vxRange(item.startVxIdx, item.endVxIdx, coords)}<br>
+          거리: ${dist} | 시간: ${timeStr} | 속도: ${item.speed}km/h<br>
+          에너지: ${item.energy}W | 세도로: ${narrowName(item.narrowRoad)} | 회전: ${item.turnCode}
+          ${item.turnCode === 160 ? ' <span style="color:#f04452;font-weight:600">⚡충전소' + (item.manualStation ? '(수동)' : '') + '</span>' : ''}
+          <br><span style="color:var(--muted);font-size:9px">nameOffset=${item.nameOffset}</span>
+        </div>
       </div>`;
-    });
-    html += `</div>`;
+    }).join('');
 
     // 주요도로 명칭
     if (rs.roadNames && rs.roadNames.length > 0) {
-      html += `<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(49,130,246,0.15)">
-        <div style="font-size:10px;color:var(--muted);margin-bottom:3px">주요도로</div>`;
-      rs.roadNames.forEach((rn) => {
-        html += `<div style="display:flex;align-items:center;gap:6px;padding:2px 0;font-size:10px">
-          <span style="color:var(--accent)">${esc(rn.name || '-')}</span>
-          <span style="color:var(--muted)">VX ${rn.startVxIdx}~${rn.endVxIdx}</span>
+      rs7Html += `<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(148,163,184,0.15)">
+        <div style="font-size:10px;font-weight:600;color:var(--muted);margin-bottom:3px">주요도로 명칭</div>`;
+      rs.roadNames.forEach((rn, i) => {
+        rs7Html += `<div style="padding:2px 0;border-bottom:1px solid rgba(148,163,184,0.08);font-size:10px">
+          [${i}] <span style="color:var(--accent)">${esc(rn.name || '-')}</span>
+          <span style="color:var(--muted)">${vxRange(rn.startVxIdx, rn.endVxIdx, coords)}</span>
         </div>`;
       });
-      html += `</div>`;
+      rs7Html += `</div>`;
     }
 
-    html += `</div>`;
+    html += sectionDetail('경로요약', 'RS7', rs.items.length, rs7Html);
   }
 
   // ---- Info Index overview ---- //

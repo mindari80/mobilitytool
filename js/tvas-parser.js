@@ -633,7 +633,7 @@ function parseRouteSummary(dv, offset, size, charset) {
       name = readString(dv, nameBlobStart + nameOffset, Math.min(200, offset + size - nameBlobStart - nameOffset), charset);
     }
     items.push({
-      name, distance, time, speed, congestion,
+      nameOffset, name, distance, time, speed, congestion,
       startVxIdx, endVxIdx, narrowRoad, turnCode, energy, manualStation,
     });
   }
@@ -656,8 +656,8 @@ function parseRouteSummary(dv, offset, size, charset) {
   }
 
   return {
-    count, infoId, trafficTime, tollFare: tollFare10 * 10, predictType, predictTime,
-    ecoSaving, roadAttr, linkNodeType, controlCode, roadNames, items,
+    count, infoId, dataType, trafficTime, tollFare: tollFare10 * 10, predictType, predictTime,
+    nameBlobSize, roadNameBlobSize, ecoSaving, roadAttr, roadNameCount, roadNames, items,
   };
 }
 
