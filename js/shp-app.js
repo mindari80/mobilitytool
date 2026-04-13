@@ -567,14 +567,14 @@ function displayResults({ locationLogs, mmLogs, routeRequests, ttsLogs }) {
   const mmGpsCount   = mmLogs.filter(p => p.sourceType === 'mm_gps').length;
   const mmMatchCount = mmLogs.filter(p => p.sourceType === 'mm_match').length;
 
-  statPoints.textContent  = locationLogs.length;
+  if (statPoints) statPoints.textContent  = locationLogs.length;
   updateCountDisplay();
-  statGps.textContent     = gpsCount;
-  statDrGps.textContent   = drGpsCount;
-  statMmGps.textContent   = mmGpsCount;
-  statMmMatch.textContent = mmMatchCount;
-  statRoute.textContent   = routeRequests.length;
-  statTts.textContent     = ttsLogs.length;
+  if (statGps) statGps.textContent     = gpsCount;
+  if (statDrGps) statDrGps.textContent   = drGpsCount;
+  if (statMmGps) statMmGps.textContent   = mmGpsCount;
+  if (statMmMatch) statMmMatch.textContent = mmMatchCount;
+  if (statRoute) statRoute.textContent   = routeRequests.length;
+  if (statTts) statTts.textContent     = ttsLogs.length;
 
   const allTimestamps = [
     ...locationLogs.map(p => p.timestamp),
@@ -586,13 +586,13 @@ function displayResults({ locationLogs, mmLogs, routeRequests, ttsLogs }) {
   if (allTimestamps.length > 0) {
     const first = new Date(Math.min(...allTimestamps));
     const last  = new Date(Math.max(...allTimestamps));
-    statTimeRange.textContent = `${formatTimestamp(first)}\n${formatTimestamp(last)}`;
+    if (statTimeRange) statTimeRange.textContent = `${formatTimestamp(first)}\n${formatTimestamp(last)}`;
   } else {
-    statTimeRange.textContent = 'N/A';
+    if (statTimeRange) statTimeRange.textContent = 'N/A';
   }
 
-  statsSection.hidden = false;
-  layerPanel.hidden   = false;
+  if (statsSection) statsSection.hidden = false;
+  if (layerPanel) layerPanel.hidden   = false;
 
   const firstLoc = [...locationLogs, ...mmLogs, ...routeRequests, ...ttsLogs]
     .find(p => (p.lat ?? p.requestLat) != null);
