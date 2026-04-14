@@ -3,698 +3,318 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DLT GPS Log Viewer</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <title>honor436 — 개발 도구 모음</title>
+  <meta name="description" content="honor436가 만든 개발용 웹 도구 모음. DLT 로그 분석기 등.">
   <style>
     :root {
       --bg: #0b1220;
       --panel: rgba(15, 23, 42, 0.92);
-      --border: rgba(148, 163, 184, 0.16);
+      --panel-hover: rgba(30, 41, 59, 0.95);
+      --border: rgba(148, 163, 184, 0.18);
+      --border-hover: rgba(56, 189, 248, 0.45);
       --text: #e2e8f0;
       --muted: #94a3b8;
       --accent: #38bdf8;
-      --gps: #2563eb;
-      --drgps: #64748b;
-      --mmgps: #06b6d4;
-      --mmmatch: #22c55e;
-      --route: #0f766e;
-      --tts: #f97316;
+      --accent-soft: rgba(56, 189, 248, 0.12);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
-    body {
-      font-family: "Segoe UI", "Noto Sans KR", sans-serif;
-      background: var(--bg);
+    html, body {
+      min-height: 100%;
+      background: radial-gradient(ellipse at top, #111a2e 0%, var(--bg) 60%);
       color: var(--text);
-      height: 100vh;
-      overflow: hidden;
-      display: flex;
+      font-family: "Segoe UI", "Noto Sans KR", -apple-system, BlinkMacSystemFont, sans-serif;
+      -webkit-font-smoothing: antialiased;
     }
 
-    /* ---- Sidebar ---- */
-    #sidebar {
-      width: 320px;
-      min-width: 280px;
-      max-width: 360px;
-      height: 100vh;
-      overflow-y: auto;
-      background: var(--panel);
-      border-right: 1px solid var(--border);
-      padding: 20px 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      backdrop-filter: blur(14px);
-      flex-shrink: 0;
+    /* ===== Header / Nav ===== */
+    header.site {
+      padding: 28px 32px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(11, 18, 32, 0.6);
+      backdrop-filter: blur(10px);
+      position: sticky;
+      top: 0;
+      z-index: 10;
     }
-
-    #sidebar h1 {
-      font-size: 18px;
-      font-weight: 700;
-      color: var(--accent);
-      letter-spacing: -0.3px;
-    }
-
-    #sidebar p.subtitle {
-      font-size: 12px;
-      color: var(--muted);
-      line-height: 1.5;
-    }
-
-    /* ---- Drop zone ---- */
-    #drop-zone {
-      border: 2px dashed var(--border);
-      border-radius: 12px;
-      padding: 20px 12px;
-      text-align: center;
-      cursor: pointer;
-      transition: border-color 0.2s, background 0.2s;
-      background: rgba(15, 23, 42, 0.5);
-    }
-    #drop-zone.drag-over {
-      border-color: var(--accent);
-      background: rgba(56, 189, 248, 0.07);
-    }
-    #drop-zone p { font-size: 13px; color: var(--muted); line-height: 1.6; }
-    #browse-btn {
-      margin-top: 8px;
-      padding: 7px 18px;
-      background: var(--accent);
-      color: #0b1220;
-      border: none;
-      border-radius: 8px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: opacity 0.2s;
-    }
-    #browse-btn:hover { opacity: 0.85; }
-
-    /* ---- Coordinate panel ---- */
-    #coord-panel {
-      background: rgba(15, 23, 42, 0.7);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 12px 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    #coord-panel h2 { font-size: 13px; font-weight: 600; color: var(--text); }
-    .coord-type-row { display: flex; gap: 6px; }
-    .coord-type-btn {
-      flex: 1;
-      padding: 5px 0;
-      font-size: 12px;
-      font-weight: 600;
-      background: rgba(148,163,184,0.1);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      color: var(--muted);
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-    .coord-type-btn.active {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: #0b1220;
-    }
-    .coord-input-row { display: flex; flex-direction: column; gap: 3px; }
-    .coord-input-row label { font-size: 11px; color: var(--muted); }
-    .coord-input-row input {
-      background: rgba(15,23,42,0.8);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      color: var(--text);
-      font-size: 12px;
-      padding: 5px 8px;
-      width: 100%;
-      outline: none;
-      transition: border-color 0.15s;
-    }
-    .coord-input-row input:focus { border-color: var(--accent); }
-    .coord-actions { display: flex; gap: 6px; }
-    #coord-show-btn {
-      flex: 1;
-      padding: 6px 0;
-      background: var(--accent);
-      color: #0b1220;
-      border: none;
-      border-radius: 7px;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: opacity 0.2s;
-    }
-    #coord-show-btn:hover { opacity: 0.85; }
-    #coord-clear-btn {
-      padding: 6px 10px;
-      background: rgba(148,163,184,0.1);
-      border: 1px solid var(--border);
-      border-radius: 7px;
-      color: var(--muted);
-      font-size: 12px;
-      cursor: pointer;
-      transition: opacity 0.2s;
-    }
-    #coord-clear-btn:hover { opacity: 0.7; }
-    #coord-result {
-      font-size: 11px;
-      min-height: 14px;
-      word-break: break-all;
-    }
-
-    /* ---- Ruler panel ---- */
-    #ruler-panel {
-      background: rgba(15, 23, 42, 0.7);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 12px 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    #ruler-panel h2 { font-size: 13px; font-weight: 600; color: var(--text); }
-    .ruler-actions { display: flex; gap: 6px; }
-    #ruler-toggle-btn {
-      flex: 1;
-      padding: 6px 0;
-      background: rgba(148,163,184,0.1);
-      border: 1px solid var(--border);
-      color: var(--muted);
-      border-radius: 7px;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-    #ruler-toggle-btn.active {
-      background: #f59e0b;
-      border-color: #f59e0b;
-      color: #0b1220;
-    }
-    #ruler-clear-btn {
-      padding: 6px 10px;
-      background: rgba(148,163,184,0.1);
-      border: 1px solid var(--border);
-      color: var(--muted);
-      border-radius: 7px;
-      font-size: 12px;
-      cursor: pointer;
-      transition: opacity 0.2s;
-    }
-    #ruler-clear-btn:hover { opacity: 0.7; }
-    #ruler-status {
-      font-size: 11px;
-      color: var(--muted);
-      min-height: 14px;
-    }
-    #ruler-status.active { color: #f59e0b; }
-
-    /* ---- Progress ---- */
-    #progress-section { display: flex; flex-direction: column; gap: 6px; }
-    .progress-track {
-      width: 100%;
-      height: 6px;
-      background: rgba(148, 163, 184, 0.15);
-      border-radius: 99px;
-      overflow: hidden;
-    }
-    #progress-bar {
-      height: 100%;
-      width: 0%;
-      background: linear-gradient(90deg, #38bdf8, #818cf8);
-      border-radius: 99px;
-      transition: width 0.15s ease;
-    }
-    #folder-name {
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--accent);
-      word-break: break-all;
-      padding: 4px 8px;
-      background: rgba(56, 189, 248, 0.08);
-      border: 1px solid rgba(56, 189, 248, 0.2);
-      border-radius: 6px;
-    }
-    #folder-name:empty { display: none; }
-    #progress-label { font-size: 12px; font-weight: 600; color: var(--text); word-break: break-all; }
-    #progress-detail { font-size: 11px; color: var(--muted); word-break: break-all; min-height: 14px; }
-
-    /* ---- File list in progress ---- */
-    #progress-files {
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-      max-height: 160px;
-      overflow-y: auto;
-      background: rgba(15, 23, 42, 0.6);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 8px 10px;
-    }
-    #progress-files:empty { display: none; }
-    .pf-row {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 11px;
-      line-height: 1.4;
-      overflow: hidden;
-    }
-    .pf-row.done   { color: #4ade80; }
-    .pf-row.active { color: var(--accent); font-weight: 600; }
-    .pf-row.pending{ color: var(--muted); }
-    .pf-icon { flex-shrink: 0; width: 14px; text-align: center; }
-    .pf-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-    /* ---- Stats ---- */
-    #stats-section { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .stat-card {
-      background: rgba(15, 23, 42, 0.7);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px 12px;
-    }
-    .stat-card.wide { grid-column: span 2; }
-    .stat-label { font-size: 11px; color: var(--muted); margin-bottom: 3px; }
-    .stat-value { font-size: 20px; font-weight: 700; }
-    .stat-value.small { font-size: 12px; white-space: pre-line; }
-
-    /* ---- Layer panel ---- */
-    #layer-panel {
-      background: rgba(15, 23, 42, 0.7);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 12px 14px;
-    }
-    #layer-panel h2 { font-size: 13px; font-weight: 600; margin-bottom: 10px; color: var(--text); }
-    .layer-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 8px;
-      font-size: 13px;
-      cursor: pointer;
-    }
-    .layer-row:last-child { margin-bottom: 0; }
-    .layer-dot {
-      width: 10px; height: 10px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-
-    /* ---- Map ---- */
-    #map-wrap { flex: 1; position: relative; }
-    #map { width: 100%; height: 100vh; }
-
-    /* ---- Ruler cursor override (beat Leaflet grab cursor) ---- */
-    #map.ruler-mode,
-    #map.ruler-mode .leaflet-container,
-    #map.ruler-mode .leaflet-grab,
-    #map.ruler-mode .leaflet-interactive,
-    #map.ruler-mode canvas { cursor: crosshair !important; }
-
-    /* ---- Ruler badge on map ---- */
-    #ruler-badge {
-      display: none;
-      position: absolute;
-      top: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(245,158,11,0.92);
-      color: #0b1220;
-      font-size: 12px;
-      font-weight: 700;
-      padding: 5px 14px;
-      border-radius: 20px;
-      z-index: 1000;
-      pointer-events: none;
-      white-space: nowrap;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-    }
-    #ruler-badge.visible { display: block; }
-
-    /* ---- Ruler tooltips ---- */
-    .ruler-tooltip,
-    .ruler-dist-label {
-      background: rgba(15,23,42,0.88) !important;
-      border: 1px solid #f59e0b !important;
-      color: #f59e0b !important;
-      font-size: 11px !important;
-      font-weight: 700 !important;
-      padding: 2px 7px !important;
-      border-radius: 4px !important;
-      box-shadow: none !important;
-      white-space: nowrap !important;
-    }
-    .ruler-tooltip::before,
-    .ruler-dist-label::before { display: none !important; }
-
-    /* ---- Popup styles ---- */
-    .leaflet-popup-content { width: 500px !important; max-width: 500px; }
-    .route-popup {
-      max-height: 420px;
-      overflow-y: auto;
-      font-size: 12px;
-      line-height: 1.5;
-      padding-right: 4px;
-    }
-    .route-popup div { margin-bottom: 2px; }
-    .route-banner {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin-bottom: 10px;
-      padding: 8px 10px;
-      border-radius: 8px;
-      background: rgba(15, 118, 110, 0.14);
-      border: 1px solid rgba(45, 212, 191, 0.22);
-    }
-    .route-popup pre {
-      white-space: pre-wrap;
-      word-break: break-word;
-      font-size: 10px;
-      background: rgba(0,0,0,0.06);
-      padding: 6px;
-      border-radius: 6px;
-    }
-    details summary { cursor: pointer; font-weight: 600; margin-top: 6px; }
-    .coord-help {
-      background: rgba(15,23,42,0.6);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 6px 10px;
-      margin-bottom: 8px;
-      font-size: 12px;
-      color: var(--muted);
-    }
-    .coord-help summary {
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--accent);
-      list-style: none;
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-    .coord-help summary::before { content: '▸'; font-size: 10px; }
-    .coord-help[open] summary::before { content: '▾'; }
-    .coord-help ul {
-      margin: 8px 0 2px;
-      padding-left: 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-      line-height: 1.5;
-    }
-
-    /* ---- Sidebar bottom (count + logo) ---- */
-    #sidebar-bottom {
-      margin-top: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      padding-top: 12px;
-      border-top: 1px solid var(--border);
-    }
-    #analysis-count-bar {
+    header.site .inner {
+      max-width: 1120px;
+      margin: 0 auto;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      background: rgba(15, 23, 42, 0.7);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 8px 14px;
+      gap: 16px;
     }
-    .ac-label { font-size: 12px; color: var(--muted); }
-    .ac-value {
-      font-size: 20px;
-      font-weight: 700;
-      color: var(--accent);
-    }
-    /* ---- Version ---- */
-    #version-label {
-      text-align: center;
-      font-size: 11px;
-      color: var(--muted);
-      opacity: 0.6;
-      letter-spacing: 0.04em;
-    }
-    /* ---- Company logo ---- */
-    #company-logo {
-      text-align: center;
-      padding: 12px 0 10px;
-      border-bottom: 1px solid rgba(255,255,255,0.08);
-      margin-bottom: 8px;
-    }
-    #company-logo img {
-      max-width: 160px;
-      height: auto;
-      border-radius: 8px;
-      background: rgba(255,255,255,0.92);
-      padding: 8px 14px;
-      opacity: 0.85;
-    }
-    #logo-fallback {
-      align-items: baseline;
-      justify-content: center;
-      gap: 4px;
-      padding: 6px 0;
-    }
-    .logo-sk  { font-size: 24px; font-weight: 900; color: #e31c1e; letter-spacing: -1px; }
-    .logo-ms  { font-size: 16px; font-weight: 700; color: #f4791e; }
-
-    @media (max-width: 800px) {
-      body { flex-direction: column; overflow: auto; }
-      #sidebar { width: 100%; max-width: 100%; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
-      #map-wrap { flex: none; height: 60vh; }
-      #map { height: 60vh; }
-    }
-    /* ---- Error popup ---- */
-    #error-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.6);
-      z-index: 9999;
-      align-items: center;
-      justify-content: center;
-    }
-    #error-overlay.visible { display: flex; }
-    #error-box {
-      background: #1e293b;
-      border: 1px solid #ef4444;
-      border-radius: 12px;
-      padding: 28px 32px;
-      max-width: 480px;
-      width: 90%;
-      box-shadow: 0 8px 40px rgba(0,0,0,0.6);
-    }
-    #error-box h3 {
-      margin: 0 0 12px;
-      color: #f87171;
-      font-size: 16px;
+    header.site .brand {
       display: flex;
       align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 18px;
+      letter-spacing: 0.3px;
+    }
+    header.site .brand .logo {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #38bdf8, #6366f1);
+      display: grid;
+      place-items: center;
+      color: #0b1220;
+      font-weight: 900;
+      font-size: 13px;
+    }
+    nav ul {
+      list-style: none;
+      display: flex;
+      gap: 18px;
+      font-size: 13px;
+    }
+    nav a {
+      color: var(--muted);
+      text-decoration: none;
+      padding: 6px 10px;
+      border-radius: 6px;
+      transition: all .15s ease;
+    }
+    nav a:hover {
+      color: var(--text);
+      background: var(--accent-soft);
+    }
+    nav a.active {
+      color: var(--accent);
+      background: var(--accent-soft);
+    }
+
+    /* ===== Hero ===== */
+    section.hero {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 64px 32px 32px;
+    }
+    section.hero h1 {
+      font-size: 38px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      line-height: 1.2;
+      margin-bottom: 12px;
+    }
+    section.hero h1 .accent { color: var(--accent); }
+    section.hero p.lead {
+      font-size: 15px;
+      color: var(--muted);
+      max-width: 640px;
+      line-height: 1.7;
+    }
+
+    /* ===== Tool grid ===== */
+    section.tools {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 24px 32px 80px;
+    }
+    section.tools h2 {
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: var(--muted);
+      margin-bottom: 16px;
+      font-weight: 600;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 16px;
+    }
+    .card {
+      display: block;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 22px 22px 20px;
+      text-decoration: none;
+      color: inherit;
+      transition: transform .18s ease, border-color .18s ease, background .18s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(600px circle at var(--mx, 50%) var(--my, 0%), var(--accent-soft), transparent 40%);
+      opacity: 0;
+      transition: opacity .2s ease;
+      pointer-events: none;
+    }
+    .card:hover {
+      transform: translateY(-2px);
+      border-color: var(--border-hover);
+      background: var(--panel-hover);
+    }
+    .card:hover::before { opacity: 1; }
+    .card .icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #0ea5e9, #6366f1);
+      display: grid;
+      place-items: center;
+      font-size: 22px;
+      margin-bottom: 14px;
+    }
+    .card h3 {
+      font-size: 17px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .card p {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.6;
+      margin-bottom: 14px;
+    }
+    .card .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .card .tag {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: rgba(56, 189, 248, 0.08);
+      color: var(--accent);
+      border: 1px solid rgba(56, 189, 248, 0.22);
+    }
+    .card .arrow {
+      position: absolute;
+      right: 20px;
+      bottom: 18px;
+      color: var(--muted);
+      font-size: 18px;
+      transition: transform .18s ease, color .18s ease;
+    }
+    .card:hover .arrow {
+      transform: translateX(3px);
+      color: var(--accent);
+    }
+
+    .card.placeholder {
+      border-style: dashed;
+      opacity: 0.55;
+      pointer-events: none;
+    }
+    .card.placeholder .icon {
+      background: rgba(148, 163, 184, 0.15);
+    }
+
+    /* ===== Footer ===== */
+    footer.site {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 24px 32px 40px;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
       gap: 8px;
     }
-    #error-box pre {
-      margin: 0 0 20px;
-      font-size: 12px;
-      color: #cbd5e1;
-      white-space: pre-wrap;
-      word-break: break-all;
-      max-height: 200px;
-      overflow-y: auto;
-      background: rgba(0,0,0,0.3);
-      border-radius: 6px;
-      padding: 10px;
+    footer.site a {
+      color: var(--muted);
+      text-decoration: none;
     }
-    #error-close {
-      display: block;
-      width: 100%;
-      padding: 9px;
-      background: #ef4444;
-      color: #fff;
-      border: none;
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
+    footer.site a:hover { color: var(--accent); }
+
+    @media (max-width: 640px) {
+      header.site { padding: 18px 20px; }
+      section.hero { padding: 40px 20px 24px; }
+      section.hero h1 { font-size: 28px; }
+      section.tools { padding: 20px; }
+      footer.site { padding: 20px; }
     }
-    #error-close:hover { background: #dc2626; }
   </style>
 </head>
 <body>
 
-<aside id="sidebar">
-  <div id="company-logo">
-    <img src="images/skms-logo.png" alt="SK m&amp;service" draggable="false"
-         onerror="this.style.display='none';document.getElementById('logo-fallback').style.display='flex'">
-    <div id="logo-fallback" style="display:none">
-      <span class="logo-sk">SK</span><span class="logo-ms">m&amp;service</span>
+<header class="site">
+  <div class="inner">
+    <div class="brand">
+      <div class="logo">h</div>
+      <div>honor436</div>
     </div>
-  </div>
-  <div>
-    <h1>DLT GPS Log Viewer</h1>
-    <p class="subtitle">.dlt 파일을 선택하면 브라우저에서 직접 분석해 TMAP 지도에 표시합니다.</p>
-  </div>
-
-  <!-- File drop zone -->
-  <div id="drop-zone">
-    <p>DLT 파일이 있는 <b>폴더</b>를 드래그 &amp; 드롭하거나<br>아래 버튼으로 선택하세요.<br><span style="font-size:11px">하위 디렉토리까지 자동으로 탐색합니다.</span></p>
-    <button id="browse-btn">폴더 선택</button>
-    <p id="browser-warn" style="font-size:11px;color:#f97316;margin-top:6px;display:none">
-      ⚠️ Chrome 또는 Edge 브라우저에서만 지원됩니다.
-    </p>
-  </div>
-
-  <!-- Progress -->
-  <div id="progress-section" hidden>
-    <div id="folder-name"></div>
-    <div class="progress-track">
-      <div id="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
-    </div>
-    <div id="progress-label">준비 중...</div>
-    <div id="progress-detail"></div>
-    <div id="progress-files"></div>
-  </div>
-
-  <!-- Stats -->
-  <div id="stats-section" hidden>
-    <div class="stat-card wide">
-      <div class="stat-label">총 위치 포인트</div>
-      <div class="stat-value" id="stat-points">—</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label" style="color:#2563eb">GPS</div>
-      <div class="stat-value" id="stat-gps">—</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label" style="color:#64748b">DR_GPS</div>
-      <div class="stat-value" id="stat-drgps">—</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label" style="color:#06b6d4">MM GPS Pos</div>
-      <div class="stat-value" id="stat-mmgps">—</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label" style="color:#22c55e">MM Match Pos</div>
-      <div class="stat-value" id="stat-mmmatch">—</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label" style="color:#0f766e">경로 요청</div>
-      <div class="stat-value" id="stat-route">—</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label" style="color:#f97316">음성안내</div>
-      <div class="stat-value" id="stat-tts">—</div>
-    </div>
-    <div class="stat-card wide">
-      <div class="stat-label">시간 범위</div>
-      <div class="stat-value small" id="stat-timerange">—</div>
-    </div>
-  </div>
-
-  <!-- Coordinate search -->
-  <div id="coord-panel">
-    <h2>좌표 검색</h2>
-    <details class="coord-help">
-      <summary>사용 방법</summary>
+    <nav>
       <ul>
-        <li><b>SK 좌표</b>: TMAP 내부 좌표계. X는 경도 방향(예: 4571910), Y는 위도 방향(예: 1347000).</li>
-        <li><b>WGS84</b>: 일반 GPS 좌표. X는 경도(예: 127.0276), Y는 위도(예: 37.4979).</li>
-        <li>값 입력 후 <b>지도에 표시</b>를 누르면 해당 위치에 마커가 표시됩니다.</li>
-        <li>DLT 로그의 팝업에서 좌표를 복사해 붙여넣어 사용할 수 있습니다.</li>
+        <li><a href="#tools" class="active">도구</a></li>
+        <li><a href="https://github.com/honor436/honor436.github.io" target="_blank" rel="noopener">GitHub</a></li>
       </ul>
-    </details>
-    <div class="coord-type-row">
-      <button class="coord-type-btn active" data-ctype="sk">SK 좌표</button>
-      <button class="coord-type-btn" data-ctype="wgs84">WGS84</button>
-    </div>
-    <div class="coord-input-row">
-      <label id="coord-label-x">X (경도 방향)</label>
-      <input type="number" id="coord-x" placeholder="예: 4571910">
-    </div>
-    <div class="coord-input-row">
-      <label id="coord-label-y">Y (위도 방향)</label>
-      <input type="number" id="coord-y" placeholder="예: 1347000">
-    </div>
-    <div class="coord-actions">
-      <button id="coord-show-btn">지도에 표시</button>
-      <button id="coord-clear-btn">삭제</button>
-    </div>
-    <div id="coord-result"></div>
+    </nav>
   </div>
+</header>
 
-  <!-- Ruler / distance measurement -->
-  <div id="ruler-panel">
-    <h2>📏 줄자</h2>
-    <div class="ruler-actions">
-      <button id="ruler-toggle-btn">줄자 모드 OFF</button>
-      <button id="ruler-clear-btn">지우기</button>
+<section class="hero">
+  <h1>개발용 웹 도구 <span class="accent">모음</span></h1>
+  <p class="lead">
+    현업에서 필요해서 직접 만드는 소규모 웹 도구들을 한곳에 정리한 페이지.
+    브라우저에서 바로 동작하고, 모든 처리는 클라이언트 사이드에서 이루어집니다.
+  </p>
+</section>
+
+<section class="tools" id="tools">
+  <h2>도구 목록</h2>
+  <div class="grid">
+
+    <!-- DLT Log Viewer -->
+    <a class="card" href="./DltLogViewer/" data-tool="dlt-log-viewer">
+      <div class="icon">🛰️</div>
+      <h3>DLT Log Viewer</h3>
+      <p>
+        DLT 바이너리 로그에서 GPS·MM 위치, 경로(TVAS), 음성안내를 추출해
+        SHP 링크/노드와 함께 지도에 시각화합니다.
+      </p>
+      <div class="tags">
+        <span class="tag">DLT</span>
+        <span class="tag">TVAS</span>
+        <span class="tag">SHP</span>
+        <span class="tag">Leaflet</span>
+      </div>
+      <div class="arrow">→</div>
+    </a>
+
+    <!-- placeholder slot for future tools -->
+    <div class="card placeholder" aria-hidden="true">
+      <div class="icon">🧭</div>
+      <h3>준비 중</h3>
+      <p>새 도구가 추가될 예정입니다.</p>
     </div>
-    <div id="ruler-status">모드를 켜고 지도를 클릭하세요.</div>
-  </div>
 
-  <!-- Layer toggle -->
-  <div id="layer-panel" hidden>
-    <h2>레이어 토글</h2>
-    <label class="layer-row">
-      <input type="checkbox" data-layer="gps" checked>
-      <span class="layer-dot" style="background:var(--gps)"></span>GPS
-    </label>
-    <label class="layer-row">
-      <input type="checkbox" data-layer="drGps" checked>
-      <span class="layer-dot" style="background:var(--drgps)"></span>DR_GPS
-    </label>
-    <label class="layer-row">
-      <input type="checkbox" data-layer="mmGps" checked>
-      <span class="layer-dot" style="background:var(--mmgps)"></span>MM GPS Pos
-    </label>
-    <label class="layer-row">
-      <input type="checkbox" data-layer="mmMatch" checked>
-      <span class="layer-dot" style="background:var(--mmmatch)"></span>MM Match Pos
-    </label>
-    <label class="layer-row">
-      <input type="checkbox" data-layer="routeRequest" checked>
-      <span class="layer-dot" style="background:var(--route)"></span>경로 요청
-    </label>
-    <label class="layer-row">
-      <input type="checkbox" data-layer="tts" checked>
-      <span class="layer-dot" style="background:var(--tts)"></span>음성안내
-    </label>
   </div>
-  <!-- Bottom: analysis count + logo -->
-  <div id="sidebar-bottom">
-    <div id="analysis-count-bar">
-      <span class="ac-label">DLT 분석 횟수</span>
-      <span id="bottom-analysis-count" class="ac-value">0</span>
-    </div>
-    <div id="version-label">v2026.04.08 · build 27</div>
+</section>
+
+<footer class="site">
+  <div>© <span id="year"></span> honor436</div>
+  <div>
+    <a href="https://github.com/honor436/honor436.github.io" target="_blank" rel="noopener">Source on GitHub</a>
   </div>
-</aside>
+</footer>
 
-<!-- Error popup -->
-<div id="error-overlay">
-  <div id="error-box">
-    <h3>⚠ 오류 발생</h3>
-    <pre id="error-message"></pre>
-    <button id="error-close">확인</button>
-  </div>
-</div>
+<script>
+  // Current year
+  document.getElementById('year').textContent = new Date().getFullYear();
 
-<div id="map-wrap">
-  <div id="ruler-badge">📏 줄자 모드 켜짐 — 지도를 클릭하세요</div>
-  <div id="map"></div>
-  <div id="wp-bar" style="display:none;padding:6px 12px;background:#f9fafb;border-top:1px solid #e5e8eb;font-size:11px;line-height:24px"></div>
-</div>
+  // Hover spotlight effect on cards
+  document.querySelectorAll('.card').forEach(card => {
+    card.addEventListener('mousemove', (e) => {
+      const r = card.getBoundingClientRect();
+      card.style.setProperty('--mx', `${e.clientX - r.left}px`);
+      card.style.setProperty('--my', `${e.clientY - r.top}px`);
+    });
+  });
+</script>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-  integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-<script type="module" src="js/app.js"></script>
 </body>
 </html>
