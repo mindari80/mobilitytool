@@ -1,0 +1,6 @@
+.claude/
+node_modules/
+
+# Symlinks/ad-hoc 실 로그 (커밋 금지)
+DLTLOG
+test-dlt-quick.mjs
