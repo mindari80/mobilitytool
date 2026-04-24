@@ -178,23 +178,60 @@ function parseGuidancePoints(dv, offset, size) {
 
 function parseDangerAreas(dv, offset, size) {
   // Header: 12 bytes (UShort count, Byte type, Byte reserved, Char[4] id, Int timeInfoSize)
-  const count = dv.getUint16(offset, true);
+  const count        = dv.getUint16(offset, true);
+  const timeInfoSize = dv.getInt32(offset + 8, true);
+  const dataStart    = offset + 12;
+  const timeInfoBase = dataStart + count * 28;   // timeInfo blob starts here
+
+  // ---- timeInfo blob 파싱 ------------------------------------------------
+  // 각 entry (timeInfoOffset 으로 참조):
+  //   Byte:  slotCount
+  //   Per slot (6 bytes):
+  //     UShort: dayFlags  (bit0=월 bit1=화 ... bit5=토 bit6=일 bit7=공휴일)
+  //     Byte: startHour, Byte: startMin, Byte: endHour, Byte: endMin
+  function parseTimeSlots(blobOffset) {
+    try {
+      if (timeInfoSize <= 0 || blobOffset < 0) return [];
+      const absBase = timeInfoBase + blobOffset;
+      if (absBase < 0 || absBase >= offset + size) return [];
+      const slotCount = dv.getUint8(absBase);
+      if (slotCount === 0 || slotCount > 20) return [];  // 이상값 방어
+      const slots = [];
+      for (let s = 0; s < slotCount; s++) {
+        const sb = absBase + 1 + s * 6;
+        if (sb + 6 > offset + size) break;
+        slots.push({
+          dayFlags:  dv.getUint16(sb, true),
+          startHour: dv.getUint8(sb + 2),
+          startMin:  dv.getUint8(sb + 3),
+          endHour:   dv.getUint8(sb + 4),
+          endMin:    dv.getUint8(sb + 5),
+        });
+      }
+      return slots;
+    } catch { return []; }
+  }
+
   const areas = [];
-  const dataStart = offset + 12;
   for (let i = 0; i < count; i++) {
     const base = dataStart + i * 28;
+    if (base + 28 > offset + size) break;   // 범위 초과 방어
+    const hasTimeInfo    = dv.getUint8(base + 8);
+    const timeInfoOffset = dv.getUint16(base + 17, true);  // timeInfo blob 내 오프셋
     areas.push({
       startVxIdx:       dv.getUint16(base, true),
       endVxIdx:         dv.getUint16(base + 2, true),
       type:             dv.getUint8(base + 4),
       speedLimit:       dv.getUint8(base + 5),
       sectionLength:    dv.getUint16(base + 6, true),
-      hasTimeInfo:      dv.getUint8(base + 8),
+      hasTimeInfo,
       variableSpeed:    dv.getUint8(base + 9),
       sectionSpeed:     dv.getUint8(base + 10),
       groupId:          dv.getInt32(base + 11, true),
       schoolZoneCamera: dv.getUint8(base + 15),
       continuousExist:  dv.getUint8(base + 16),
+      timeInfoOffset,
+      timeSlots:        hasTimeInfo ? parseTimeSlots(timeInfoOffset) : [],
     });
   }
   return areas;

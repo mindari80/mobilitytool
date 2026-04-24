@@ -50,21 +50,300 @@ const CONGESTION_COLORS = {
 const CONGESTION_FALLBACK_COLOR = '#38bdf8';
 const CONGESTION_NAMES = { '1': '원활', '2': '서행', '4': '정체', '0': '정보없음' };
 
-const DANGER_TYPE_ICONS = {
-  camera: '📷', section: '📐', schoolZone: '🏫',
-  accident: '⚠', curve: '↩', fog: '🌫',
-  train: '🚂', default: '⚠',
-};
+// ---- DA5 SVG 아이콘 ------------------------------------------------------- //
+function getDangerIconSvg(type) {
+  // SVG 도형 헬퍼
+  const warn = (inner, w=28, h=26) =>
+    `<svg width="${w}" height="${h}" viewBox="0 0 28 26" xmlns="http://www.w3.org/2000/svg">
+      <polygon points="14,1.5 26.5,24.5 1.5,24.5" fill="#fbbf24" stroke="#ef4444" stroke-width="2" stroke-linejoin="round"/>
+      <polygon points="14,3.5 24.5,23.5 3.5,23.5" fill="#fcd34d" stroke="none"/>
+      ${inner}</svg>`;
 
+  const redCircle = (inner, w=26, h=26) =>
+    `<svg width="${w}" height="${h}" viewBox="0 0 26 26" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="13" cy="13" r="12" fill="white" stroke="#ef4444" stroke-width="2.5"/>
+      ${inner}</svg>`;
+
+  const blueCircle = (inner, w=26, h=26) =>
+    `<svg width="${w}" height="${h}" viewBox="0 0 26 26" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="13" cy="13" r="12" fill="white" stroke="#3b82f6" stroke-width="2.5"/>
+      ${inner}</svg>`;
+
+  const grayCircle = (inner) =>
+    `<svg width="26" height="26" viewBox="0 0 26 26" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="13" cy="13" r="12" fill="white" stroke="#9ca3af" stroke-width="2.5"/>
+      ${inner}</svg>`;
+
+  // 카메라 도형 (cx, cy, s=scale)
+  const cam = (cx, cy, s=1) =>
+    `<rect x="${cx-5*s}" y="${cy-3.5*s}" width="${10*s}" height="${7*s}" rx="${1*s}" fill="#374151"/>
+     <circle cx="${cx}" cy="${cy}" r="${2.5*s}" fill="white"/>
+     <rect x="${cx-5.5*s}" y="${cy-5.5*s}" width="${3*s}" height="${2.5*s}" rx="${0.5*s}" fill="#374151"/>`;
+
+  // 신호등 도형
+  const tlight = (cx, cy, s=1) =>
+    `<rect x="${cx-2.5*s}" y="${cy-5.5*s}" width="${5*s}" height="${11*s}" rx="${1.5*s}" fill="#374151"/>
+     <circle cx="${cx}" cy="${cy-3.2*s}" r="${1.4*s}" fill="#ef4444"/>
+     <circle cx="${cx}" cy="${cy}" r="${1.4*s}" fill="#fbbf24"/>
+     <circle cx="${cx}" cy="${cy+3.2*s}" r="${1.4*s}" fill="#4ade80"/>`;
+
+  // 구간단속 공통 (아래 라벨)
+  const section = (label, inner) =>
+    `<svg width="28" height="28" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="14" cy="14" r="13" fill="white" stroke="#ef4444" stroke-width="2.5"/>
+      ${inner}
+      <rect x="2" y="19.5" width="24" height="7" rx="1.5" fill="#1e293b"/>
+      <text x="14" y="25.5" text-anchor="middle" font-size="5.5" font-weight="bold" fill="white" font-family="sans-serif">${label}</text>
+    </svg>`;
+
+  // 후면 공통 (위 라벨)
+  const rear = (inner) =>
+    `<svg width="28" height="28" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="14" cy="14" r="13" fill="white" stroke="#ef4444" stroke-width="2.5"/>
+      <rect x="2" y="1.5" width="24" height="7" rx="1.5" fill="#1e293b"/>
+      <text x="14" y="7.5" text-anchor="middle" font-size="5.5" font-weight="bold" fill="white" font-family="sans-serif">후면</text>
+      ${inner}
+    </svg>`;
+
+  switch (type) {
+    // ── 경고 삼각형 ──────────────────────────────────────────
+    case 15: // 철도건널목
+      return warn(`
+        <rect x="7" y="14" width="14" height="7" rx="1" fill="#374151"/>
+        <line x1="9" y1="14" x2="9" y2="21" stroke="#fcd34d" stroke-width="1"/>
+        <line x1="12" y1="14" x2="12" y2="21" stroke="#fcd34d" stroke-width="1"/>
+        <line x1="16" y1="14" x2="16" y2="21" stroke="#fcd34d" stroke-width="1"/>
+        <line x1="19" y1="14" x2="19" y2="21" stroke="#fcd34d" stroke-width="1"/>
+        <rect x="5" y="12" width="18" height="2.5" rx="1" fill="#374151"/>
+        <circle cx="8" cy="11" r="1.5" fill="#ef4444"/>
+        <circle cx="20" cy="11" r="1.5" fill="#ef4444"/>
+        <line x1="8" y1="9" x2="8" y2="7" stroke="#374151" stroke-width="1.5"/>
+        <line x1="20" y1="9" x2="20" y2="7" stroke="#374151" stroke-width="1.5"/>`);
+
+    case 3: // 사고다발
+      return warn(`
+        <rect x="8" y="13" width="6" height="4" rx="1" fill="#374151"/>
+        <rect x="9" y="11.5" width="4" height="2" rx="0.5" fill="#374151"/>
+        <circle cx="9.5" cy="17.5" r="1.5" fill="#374151"/>
+        <circle cx="12.5" cy="17.5" r="1.5" fill="#374151"/>
+        <rect x="14" y="14" width="6" height="4" rx="1" fill="#374151"/>
+        <rect x="15" y="12.5" width="4" height="2" rx="0.5" fill="#374151"/>
+        <circle cx="15.5" cy="18.5" r="1.5" fill="#374151"/>
+        <circle cx="18.5" cy="18.5" r="1.5" fill="#374151"/>
+        <text x="14" y="12.5" text-anchor="middle" font-size="5" fill="#ef4444" font-weight="bold">!!</text>`);
+
+    case 22: // 사고다발(보행자)
+      return warn(`
+        <circle cx="11" cy="11" r="1.8" fill="#374151"/>
+        <line x1="11" y1="12.8" x2="11" y2="17" stroke="#374151" stroke-width="1.5"/>
+        <line x1="11" y1="14.5" x2="9" y2="16.5" stroke="#374151" stroke-width="1.2"/>
+        <line x1="11" y1="14.5" x2="13" y2="16.5" stroke="#374151" stroke-width="1.2"/>
+        <line x1="11" y1="17" x2="9.5" y2="21" stroke="#374151" stroke-width="1.2"/>
+        <line x1="11" y1="17" x2="12.5" y2="21" stroke="#374151" stroke-width="1.2"/>
+        <rect x="15" y="14" width="7" height="4" rx="1" fill="#374151"/>
+        <rect x="16" y="12" width="5" height="2.5" rx="0.5" fill="#374151"/>
+        <circle cx="16.5" cy="18.5" r="1.4" fill="#374151"/>
+        <circle cx="20.5" cy="18.5" r="1.4" fill="#374151"/>`);
+
+    case 4: // 급커브
+      return warn(`<path d="M8 22 C8 14 11 10 14 12 C17 14 18 18 20 10"
+        stroke="#374151" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        <polyline points="18,10 20,10 20,12.5" fill="none" stroke="#374151" stroke-width="2" stroke-linejoin="round"/>`);
+
+    case 5: // 안개지역
+      return warn(`
+        <text x="14" y="17" text-anchor="middle" font-size="6.5" font-weight="bold" fill="#374151" font-family="sans-serif">FOG</text>
+        <line x1="8" y1="19.5" x2="20" y2="19.5" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="2.5,2"/>
+        <line x1="9" y1="22" x2="19" y2="22" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="2.5,2"/>`);
+
+    case 19: // 과속방지턱
+      return warn(`<path d="M7 21 C9 13 11 13 14 14 C17 15 19 13 21 21 Z" fill="#374151"/>
+        <rect x="6" y="21" width="16" height="2" rx="0" fill="#374151"/>`);
+
+    case 16: case 17: case 29: case 30: // 어린이보호구역
+      return warn(`
+        <circle cx="14" cy="10.5" r="2" fill="#374151"/>
+        <line x1="14" y1="12.5" x2="14" y2="17" stroke="#374151" stroke-width="1.5"/>
+        <line x1="14" y1="14" x2="11" y2="16.5" stroke="#374151" stroke-width="1.3"/>
+        <line x1="14" y1="14" x2="17" y2="16.5" stroke="#374151" stroke-width="1.3"/>
+        <line x1="14" y1="17" x2="12" y2="21" stroke="#374151" stroke-width="1.3"/>
+        <line x1="14" y1="17" x2="16" y2="21" stroke="#374151" stroke-width="1.3"/>
+        <circle cx="10.5" cy="11" r="1.5" fill="#374151"/>
+        <line x1="10.5" y1="12.5" x2="10.5" y2="16" stroke="#374151" stroke-width="1.3"/>
+        <line x1="10.5" y1="16" x2="9" y2="21" stroke="#374151" stroke-width="1.2"/>
+        <line x1="10.5" y1="16" x2="12" y2="21" stroke="#374151" stroke-width="1.2"/>`);
+
+    case 31: case 32: // 장애인보호구역
+      return warn(`
+        <circle cx="14" cy="10" r="2" fill="#374151"/>
+        <path d="M11 14 L14 12.5 L17 14 L17 18 L11 18 Z" fill="#374151"/>
+        <circle cx="12" cy="20" r="1.5" fill="#374151"/>
+        <circle cx="16" cy="20" r="1.5" fill="#374151"/>
+        <line x1="14" y1="18" x2="14" y2="19" stroke="#374151" stroke-width="1.5"/>`);
+
+    case 33: case 34: // 노인보호구역
+      return warn(`
+        <circle cx="14" cy="10" r="2" fill="#374151"/>
+        <path d="M12 12.5 Q10 15 11 17 L13 22" stroke="#374151" stroke-width="1.5" fill="none"/>
+        <path d="M14 12.5 Q16 15 15 17 L13 22" stroke="#374151" stroke-width="1.5" fill="none"/>
+        <line x1="10" y1="15" x2="8.5" y2="22" stroke="#374151" stroke-width="1.3"/>`);
+
+    case 35: case 36: // 마을주민보호
+    case 46: case 47: // 보행자우선
+      return warn(`
+        <circle cx="14" cy="10.5" r="2" fill="#374151"/>
+        <line x1="14" y1="12.5" x2="14" y2="17" stroke="#374151" stroke-width="1.5"/>
+        <line x1="11" y1="14.5" x2="17" y2="14.5" stroke="#374151" stroke-width="1.3"/>
+        <line x1="14" y1="17" x2="11.5" y2="21" stroke="#374151" stroke-width="1.3"/>
+        <line x1="14" y1="17" x2="16.5" y2="21" stroke="#374151" stroke-width="1.3"/>`);
+
+    case 18: // 야생동물
+      return warn(`<text x="14" y="21" text-anchor="middle" font-size="12">🦌</text>`);
+
+    case 23: // 결빙주의
+      return warn(`<path d="M 8 22 C10 18 12 19 14 20 C16 21 18 18 20 22" fill="#93c5fd" stroke="#3b82f6" stroke-width="1"/>
+        <text x="14" y="17" text-anchor="middle" font-size="6" font-weight="bold" fill="#1e3a5f" font-family="sans-serif">ICE</text>`);
+
+    case 28: // 기상청결빙
+      return warn(`<text x="14" y="19" text-anchor="middle" font-size="7" font-weight="bold" fill="#374151" font-family="sans-serif">❄ 결빙</text>`);
+
+    case 9: // 낙석위험
+      return warn(`
+        <circle cx="14" cy="11" r="3" fill="#374151"/>
+        <circle cx="18" cy="14" r="2" fill="#374151"/>
+        <circle cx="11" cy="15.5" r="2.5" fill="#374151"/>
+        <line x1="9" y1="21" x2="20" y2="21" stroke="#374151" stroke-width="2"/>`);
+
+    case 44: // 홍수예보
+    case 45: // 댐방류
+      return warn(`
+        <path d="M7 20 Q9 17 11 20 Q13 23 15 20 Q17 17 19 20 Q20 21.5 21 20" fill="none" stroke="#3b82f6" stroke-width="2"/>
+        <path d="M7 17 Q9 14 11 17 Q13 20 15 17 Q17 14 19 17" fill="none" stroke="#60a5fa" stroke-width="1.5"/>
+        <text x="14" y="12" text-anchor="middle" font-size="6" font-weight="bold" fill="#1e3a5f" font-family="sans-serif">${type===44?'홍수':'댐'}</text>`);
+
+    // ── 빨간 원형 (단속) ─────────────────────────────────────
+    case 1:  // 고정식 과속
+    case 21: // 고정식 박스형
+      return redCircle(cam(13, 13));
+
+    case 6:  // 신호과속단속
+    case 14: // 신호단속
+      return redCircle(tlight(13, 13));
+
+    case 7: // 버스전용차로
+      return redCircle(`
+        <rect x="6" y="9" width="14" height="8" rx="2" fill="#374151"/>
+        <rect x="7.5" y="10.5" width="4.5" height="3" rx="0.8" fill="#60a5fa"/>
+        <rect x="14" y="10.5" width="4.5" height="3" rx="0.8" fill="#60a5fa"/>
+        <circle cx="8.5" cy="18" r="1.5" fill="#374151"/>
+        <circle cx="17.5" cy="18" r="1.5" fill="#374151"/>
+        <text x="13" y="8.5" text-anchor="middle" font-size="5.5" font-weight="bold" fill="#ef4444" font-family="sans-serif">BUS</text>`);
+
+    case 8: // 갓길운행금지
+      return redCircle(`
+        <line x1="7" y1="7" x2="19" y2="19" stroke="#ef4444" stroke-width="2.5"/>
+        <line x1="19" y1="7" x2="7" y2="19" stroke="#ef4444" stroke-width="2.5"/>
+        <text x="13" y="22" text-anchor="middle" font-size="5" fill="#374151" font-family="sans-serif">갓길</text>`);
+
+    case 10: // 교통수집
+      return redCircle(`
+        <circle cx="13" cy="11" r="2.5" fill="none" stroke="#374151" stroke-width="1.5"/>
+        <line x1="13" y1="8.5" x2="13" y2="6.5" stroke="#374151" stroke-width="1.5"/>
+        <line x1="15.3" y1="9.2" x2="16.7" y2="7.8" stroke="#374151" stroke-width="1.5"/>
+        <line x1="16" y1="11" x2="18" y2="11" stroke="#374151" stroke-width="1.5"/>
+        <text x="13" y="18.5" text-anchor="middle" font-size="5.5" font-weight="bold" fill="#374151" font-family="sans-serif">수집</text>`);
+
+    case 13: // 끼어들기단속
+      return grayCircle(`
+        <line x1="13" y1="19" x2="13" y2="10" stroke="#374151" stroke-width="2"/>
+        <polyline points="10,13.5 13,10 16,13.5" fill="none" stroke="#374151" stroke-width="2" stroke-linejoin="round"/>
+        <line x1="13" y1="15" x2="9" y2="19" stroke="#374151" stroke-width="1.5"/>
+        <line x1="13" y1="15" x2="17" y2="19" stroke="#374151" stroke-width="1.5"/>
+        <polyline points="10,15.5 9,19" fill="none" stroke="#374151" stroke-width="1.5"/>
+        <polyline points="16,15.5 17,19" fill="none" stroke="#374151" stroke-width="1.5"/>`);
+
+    case 20: // 주차단속
+      return redCircle(`<text x="13" y="18" text-anchor="middle" font-size="15" font-weight="bold" fill="#374151" font-family="sans-serif">P</text>`);
+
+    case 24: // 노후경유차
+      return redCircle(`
+        <rect x="6" y="10" width="14" height="7" rx="1.5" fill="#374151"/>
+        <circle cx="9" cy="18" r="1.5" fill="#374151"/>
+        <circle cx="17" cy="18" r="1.5" fill="#374151"/>
+        <path d="M17 8 L18 11 L16 11 Z" fill="#6b7280"/>
+        <text x="13" y="16" text-anchor="middle" font-size="4.5" font-weight="bold" fill="white" font-family="sans-serif">경유차</text>`);
+
+    case 25: // 터널차로변경
+      return redCircle(`
+        <path d="M6 16 Q13 8 20 16" fill="#374151"/>
+        <rect x="6" y="16" width="14" height="5" fill="#374151"/>
+        <line x1="13" y1="10" x2="13" y2="20" stroke="#fbbf24" stroke-width="1" stroke-dasharray="2,1.5"/>
+        <text x="13" y="8.5" text-anchor="middle" font-size="4.5" font-weight="bold" fill="#374151" font-family="sans-serif">터널</text>`);
+
+    case 39: // 화물차높이
+      return redCircle(`
+        <rect x="7" y="12" width="12" height="6" rx="1" fill="#374151"/>
+        <line x1="13" y1="7" x2="13" y2="11" stroke="#374151" stroke-width="2"/>
+        <line x1="10.5" y1="9.5" x2="13" y2="7" stroke="#374151" stroke-width="2"/>
+        <line x1="15.5" y1="9.5" x2="13" y2="7" stroke="#374151" stroke-width="2"/>
+        <text x="13" y="16.5" text-anchor="middle" font-size="4.5" font-weight="bold" fill="white" font-family="sans-serif">높이</text>`);
+
+    case 40: // 화물차중량
+      return redCircle(`
+        <rect x="7" y="12" width="12" height="6" rx="1" fill="#374151"/>
+        <text x="13" y="16.5" text-anchor="middle" font-size="4.5" font-weight="bold" fill="white" font-family="sans-serif">중량</text>
+        <circle cx="13" cy="10" r="2.5" fill="none" stroke="#374151" stroke-width="1.5"/>
+        <line x1="13" y1="10" x2="13" y2="7" stroke="#374151" stroke-width="1.5"/>`);
+
+    case 41: // 화물차폭
+      return redCircle(`
+        <rect x="7" y="12" width="12" height="6" rx="1" fill="#374151"/>
+        <text x="13" y="16.5" text-anchor="middle" font-size="4.5" font-weight="bold" fill="white" font-family="sans-serif">폭</text>
+        <line x1="7" y1="10" x2="19" y2="10" stroke="#374151" stroke-width="1.5"/>
+        <line x1="7" y1="8.5" x2="7" y2="11.5" stroke="#374151" stroke-width="1.5"/>
+        <line x1="19" y1="8.5" x2="19" y2="11.5" stroke="#374151" stroke-width="1.5"/>`);
+
+    case 42: // 기상청안내
+      return warn(`<text x="14" y="19" text-anchor="middle" font-size="7" font-weight="bold" fill="#374151" font-family="sans-serif">기상</text>`);
+
+    case 43: // C-ITS
+      return redCircle(`<text x="13" y="15.5" text-anchor="middle" font-size="6" font-weight="bold" fill="#374151" font-family="sans-serif">C-ITS</text>`);
+
+    // ── 파란 원형 (이동식/정보) ───────────────────────────────
+    case 2: // 이동식 과속
+      return blueCircle(cam(13, 13));
+
+    // ── 구간단속 (시점/종점 라벨) ─────────────────────────────
+    case 11: // 구간단속 시점
+      return section('시점', cam(14, 12));
+    case 12: // 구간단속 종점
+      return section('종점', cam(14, 12));
+    case 26: // 가변구간단속 시점
+      return section('가변시점', cam(14, 12));
+    case 27: // 가변구간단속 종점
+      return section('가변종점', cam(14, 12));
+
+    // ── 후면 단속 ────────────────────────────────────────────
+    case 37: // 후면과속단속
+      return rear(cam(14, 17));
+    case 38: // 후면신호과속단속
+      return rear(tlight(14, 17));
+
+    default:
+      return redCircle(`<text x="13" y="17" text-anchor="middle" font-size="12" fill="#ef4444">⚠</text>`);
+  }
+}
+
+// 구버전 호환용 (팝업 헤더에서 사용)
 function getDangerIcon(type) {
-  if ([1,2,6,14,21,37,38].includes(type)) return DANGER_TYPE_ICONS.camera;
-  if ([11,12,13,26,27].includes(type)) return DANGER_TYPE_ICONS.section;
-  if ([16,17,29,30,31,32,33,34,35,36].includes(type)) return DANGER_TYPE_ICONS.schoolZone;
-  if ([3,22].includes(type)) return DANGER_TYPE_ICONS.accident;
-  if (type === 4) return DANGER_TYPE_ICONS.curve;
-  if ([5,23,28].includes(type)) return DANGER_TYPE_ICONS.fog;
-  if (type === 15) return DANGER_TYPE_ICONS.train;
-  return DANGER_TYPE_ICONS.default;
+  if ([1,2,6,14,21,37,38].includes(type)) return '📷';
+  if ([11,12,13,26,27].includes(type))    return '📐';
+  if ([16,17,29,30,31,32,33,34,35,36].includes(type)) return '🏫';
+  if ([3,22].includes(type))  return '⚠';
+  if (type === 4)              return '↩';
+  if ([5,23,28].includes(type)) return '🌫';
+  if (type === 15)             return '🚂';
+  return '⚠';
 }
 
 // ---- HTML helpers --------------------------------------------------------- //
@@ -477,26 +756,97 @@ function renderGuidancePoints(lg, coords, guidancePoints, directionNames, inters
   }
 }
 
+// ---- DA5 상세 팝업 -------------------------------------------------------- //
+const SECTION_TYPES = new Set([11, 12, 26, 27]);
+const DAY_NAMES     = ['월', '화', '수', '목', '금', '토', '일', '공휴일'];
+
+function formatTimeSlots(slots) {
+  if (!slots || slots.length === 0) return null;
+  return slots.map(s => {
+    const days = DAY_NAMES.filter((_, i) => s.dayFlags & (1 << i)).join(',') || '매일';
+    const pad  = n => String(n).padStart(2, '0');
+    return `${days} ${pad(s.startHour)}:${pad(s.startMin)}~${pad(s.endHour)}:${pad(s.endMin)}`;
+  }).join('<br>');
+}
+
+function buildDangerPopup(da, coords) {
+  const icon      = getDangerIcon(da.type);
+  const typeName  = dangerName(da.type);
+  const startC    = da.startVxIdx < coords.length ? coords[da.startVxIdx] : null;
+  const endC      = da.endVxIdx   < coords.length ? coords[da.endVxIdx]   : null;
+  const isSection = SECTION_TYPES.has(da.type);
+
+  const row = (label, val, hi) =>
+    `<tr><td style="color:#8b95a1;padding:2px 6px 2px 0;white-space:nowrap">${label}</td>` +
+    `<td style="padding:2px 0;${hi ? 'color:#fbbf24;font-weight:600' : ''}">${val}</td></tr>`;
+
+  let html = `<div style="font-size:12px;line-height:1.7;min-width:240px;max-width:340px">`;
+  // 헤더
+  html += `<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">`;
+  html += `<span style="font-size:20px">${icon}</span>`;
+  html += `<b style="font-size:13px">${esc(typeName)}</b>`;
+  html += `<span style="margin-left:auto;font-size:10px;color:#8b95a1;background:rgba(239,68,68,0.15);padding:1px 6px;border-radius:8px">타입 ${da.type}</span>`;
+  html += `</div><table style="width:100%;font-size:11px;border-collapse:collapse">`;
+
+  // 보관점 VX + 좌표
+  if (startC) html += row('시작 VX', `${da.startVxIdx} <span style="color:#64748b">(${startC.lat.toFixed(6)}, ${startC.lon.toFixed(6)})</span>`);
+  if (endC && da.startVxIdx !== da.endVxIdx)
+    html += row('끝 VX', `${da.endVxIdx} <span style="color:#64748b">(${endC.lat.toFixed(6)}, ${endC.lon.toFixed(6)})</span>`);
+  else if (da.startVxIdx === da.endVxIdx)
+    html += row('VX', `${da.startVxIdx} <span style="color:#64748b">(단일 지점)</span>`);
+
+  // 속도·구간
+  if (da.speedLimit > 0)   html += row('제한속도',    `${da.speedLimit} km/h`);
+  if (da.sectionLength > 0) html += row('구간길이',   formatDistance(da.sectionLength));
+  if (da.sectionSpeed > 0)  html += row('구간단속속도', `${da.sectionSpeed} km/h`, true);
+  if (da.groupId !== 0)     html += row('그룹 ID',    da.groupId, isSection);
+
+  // 플래그
+  html += row('연속 위험지역', da.continuousExist ? '✅ 있음' : '없음', da.continuousExist);
+  html += row('가변 단속',     da.variableSpeed   ? '✅ 가변' : '고정', da.variableSpeed);
+  if (da.schoolZoneCamera)  html += row('어린이보호구역', '🏫 단속카메라 있음', true);
+
+  // 단속 시간
+  if (da.hasTimeInfo) {
+    html += row('단속시간 정보', '있음', true);
+    const timeStr = formatTimeSlots(da.timeSlots);
+    if (timeStr) {
+      html += `<tr><td colspan="2" style="padding:4px 0 2px">`;
+      html += `<div style="background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);border-radius:6px;padding:4px 8px;color:#fbbf24;line-height:1.8">`;
+      html += `<b>⏰ 단속 시간</b><br>${timeStr}</div></td></tr>`;
+    }
+  } else {
+    html += row('단속시간 정보', '없음 (상시 단속)');
+  }
+
+  html += `</table></div>`;
+  return html;
+}
+
 function renderDangerAreas(lg, coords, dangerAreas) {
+  // 구간단속·후면 아이콘은 28x28, 나머지는 26x26
+  const bigTypes = new Set([11, 12, 26, 27, 37, 38]);
   for (const da of dangerAreas) {
     if (da.startVxIdx >= coords.length) continue;
     const startC = coords[da.startVxIdx];
-    const icon = getDangerIcon(da.type);
+
+    // 구간 폴리라인
     if (da.startVxIdx !== da.endVxIdx) {
       const segment = [];
       for (let i = da.startVxIdx; i <= Math.min(da.endVxIdx, coords.length - 1); i++) segment.push([coords[i].lat, coords[i].lon]);
-      if (segment.length >= 2) L.polyline(segment, { color: '#ef4444', weight: 8, opacity: 0.5, dashArray: '8,6' }).addTo(lg);
+      if (segment.length >= 2) L.polyline(segment, { color: '#ef4444', weight: 6, opacity: 0.55, dashArray: '8,5' }).addTo(lg);
     }
-    let popup = `<b>${icon} ${esc(dangerName(da.type))}</b>`;
-    if (da.speedLimit > 0) popup += `<br>제한속도: ${da.speedLimit}km/h`;
-    if (da.sectionLength > 0) popup += `<br>구간길이: ${formatDistance(da.sectionLength)}`;
-    if (da.sectionSpeed > 0) popup += `<br>구간단속속도: ${da.sectionSpeed}km/h`;
-    if (da.variableSpeed) popup += `<br>가변속도`;
-    if (da.schoolZoneCamera) popup += `<br>어린이보호구역 단속카메라`;
-    popup += `<br>VX: ${da.startVxIdx}~${da.endVxIdx}`;
+
+    const svgHtml = getDangerIconSvg(da.type);
+    const sz = bigTypes.has(da.type) ? 28 : 26;
+    const popup = buildDangerPopup(da, coords);
     L.marker([startC.lat, startC.lon], {
-      icon: L.divIcon({ className: '', html: `<div style="width:24px;height:24px;line-height:24px;text-align:center;background:rgba(239,68,68,0.9);border-radius:6px;font-size:13px;box-shadow:0 1px 4px rgba(0,0,0,.4);border:1px solid #fff">${icon}</div>`, iconSize: [24, 24], iconAnchor: [12, 12] }),
-    }).bindPopup(popup, { maxWidth: 300 }).addTo(lg);
+      icon: L.divIcon({
+        className: '',
+        html: `<div style="filter:drop-shadow(0 1px 3px rgba(0,0,0,.5))">${svgHtml}</div>`,
+        iconSize: [sz, sz], iconAnchor: [sz/2, sz/2],
+      }),
+    }).bindPopup(popup, { maxWidth: 360 }).addTo(lg);
   }
 }
 
