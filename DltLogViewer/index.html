@@ -370,6 +370,57 @@
     .ruler-tooltip::before,
     .ruler-dist-label::before { display: none !important; }
 
+    /* ---- Traffic panel (TDS) ---- */
+    #traffic-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    #traffic-panel h2 { font-size: 15px; font-weight: 700; color: var(--text); line-height: 22.5px; }
+    .traffic-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .traffic-main-btn {
+      flex: 1;
+      padding: 8px 0;
+      text-align: center;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.1s ease-in-out;
+    }
+    .traffic-main-btn:hover { background: var(--accent-hover); }
+    .traffic-main-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .traffic-sub-btn {
+      padding: 6px 10px;
+      background: rgba(148,163,184,0.1);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 7px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .traffic-sub-btn:hover { opacity: 0.7; }
+    #traffic-status {
+      font-size: 11px;
+      color: var(--muted);
+      min-height: 14px;
+      word-break: break-all;
+    }
+    #traffic-status.error { color: var(--danger); }
+    #traffic-status.success { color: var(--success); }
+    #traffic-toggles { display: flex; flex-direction: column; gap: 4px; }
+    #traffic-toggles .layer-row { margin-bottom: 0; font-size: 12px; }
+    #traffic-toggles .traffic-master { padding-bottom: 4px; border-bottom: 1px dashed var(--border); margin-bottom: 4px; }
+    .traffic-cat-count { color: var(--muted); font-size: 11px; margin-left: auto; }
+
     /* ---- SHP panel (TDS) ---- */
     #shp-panel {
       background: var(--surface);
@@ -1135,6 +1186,31 @@
     </div>
   </div>
 
+  <!-- Traffic incidents (TMAP top-open) -->
+  <div id="traffic-panel">
+    <h2>RTM</h2>
+    <div class="traffic-actions">
+      <button id="traffic-load-btn" class="traffic-main-btn">현재 영역 불러오기</button>
+      <button id="traffic-load-all-btn" class="traffic-main-btn">전국 영역 불러오기</button>
+    </div>
+    <div class="traffic-actions">
+      <button id="traffic-clear-btn" class="traffic-sub-btn" style="flex:1">지우기</button>
+    </div>
+    <div id="traffic-toggles" style="display:none;border-top:1px solid var(--border);padding-top:8px;margin-top:4px">
+      <label class="layer-row traffic-master">
+        <input type="checkbox" id="traffic-toggle-all" checked>
+        <b>전체 표시</b>
+      </label>
+      <label class="layer-row"><input type="checkbox" class="traffic-cat-cb" data-cat="E" checked><span class="layer-dot" style="background:#dc2626"></span>통제 <span class="traffic-cat-count" data-cat="E"></span></label>
+      <label class="layer-row"><input type="checkbox" class="traffic-cat-cb" data-cat="B" checked><span class="layer-dot" style="background:#f59e0b"></span>공사 <span class="traffic-cat-count" data-cat="B"></span></label>
+      <label class="layer-row"><input type="checkbox" class="traffic-cat-cb" data-cat="A" checked><span class="layer-dot" style="background:#ef4444"></span>사고 <span class="traffic-cat-count" data-cat="A"></span></label>
+      <label class="layer-row"><input type="checkbox" class="traffic-cat-cb" data-cat="C" checked><span class="layer-dot" style="background:#a855f7"></span>행사 <span class="traffic-cat-count" data-cat="C"></span></label>
+      <label class="layer-row"><input type="checkbox" class="traffic-cat-cb" data-cat="D" checked><span class="layer-dot" style="background:#06b6d4"></span>재해 <span class="traffic-cat-count" data-cat="D"></span></label>
+      <label class="layer-row"><input type="checkbox" class="traffic-cat-cb" data-cat="OTHER" checked><span class="layer-dot" style="background:#94a3b8"></span>기타 <span class="traffic-cat-count" data-cat="OTHER"></span></label>
+    </div>
+    <div id="traffic-status"></div>
+  </div>
+
   <!-- Layer toggle -->
   <div id="layer-panel" hidden></div>
   <!-- Bottom: analysis count + logo -->
@@ -1206,7 +1282,8 @@
       <span class="tvas-ltog on" data-tl="tollgate">톨게이트</span>
       <span class="tvas-ltog on" data-tl="restArea">휴게소</span>
       <span class="tvas-ltog on" data-tl="lane">차로</span>
-      <span class="tvas-ltog on" data-tl="evCharger">충전소</span>
+      <span class="tvas-ltog on" data-tl="evChargerOnRoute">충전소(경로상)</span>
+      <span class="tvas-ltog on" data-tl="evChargerNearRoute">충전소(경로주변)</span>
       <span class="tvas-ltog on" data-tl="direction">방면</span>
       <span class="tvas-ltog on" data-tl="roadName">도로명</span>
       <span class="tvas-ltog on" data-tl="waypoint">경유지</span>
@@ -1361,6 +1438,81 @@
 <script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.js"></script>
 <script src="https://unpkg.com/shpjs@4.0.4/dist/shp.js"></script>
 <script type="module" src="js/shp-app.js?v=20260413"></script>
+
+<!-- Traffic incident overlay -->
+<script type="module">
+import {
+  loadTraffic, clearTraffic, toggleTrafficLayer, toggleTrafficCategory,
+  setTrafficCountsListener,
+} from './js/traffic-layer.js';
+import { CATEGORY_KEYS } from './js/traffic-api.js';
+
+const loadBtn    = document.getElementById('traffic-load-btn');
+const loadAllBtn = document.getElementById('traffic-load-all-btn');
+const clearBtn   = document.getElementById('traffic-clear-btn');
+const togglesBox = document.getElementById('traffic-toggles');
+const masterCb   = document.getElementById('traffic-toggle-all');
+const catCbs     = document.querySelectorAll('.traffic-cat-cb');
+const countEls   = document.querySelectorAll('.traffic-cat-count');
+const statusEl   = document.getElementById('traffic-status');
+
+function setStatus(msg, kind) {
+  statusEl.textContent = msg || '';
+  statusEl.classList.remove('error', 'success');
+  if (kind) statusEl.classList.add(kind);
+}
+
+function updateCounts(counts) {
+  countEls.forEach(el => {
+    const n = counts[el.dataset.cat] || 0;
+    el.textContent = n ? `(${n.toLocaleString()})` : '';
+  });
+}
+setTrafficCountsListener(updateCounts);
+
+async function doLoad(bounds, label) {
+  loadBtn.disabled = true;
+  loadAllBtn.disabled = true;
+  setStatus(`${label} RTM 불러오는 중...`);
+  try {
+    const { count } = await loadTraffic(bounds);
+    setStatus(`${label}: ${count.toLocaleString()}건 표시됨`, 'success');
+    togglesBox.style.display = '';
+    masterCb.checked = true;
+    catCbs.forEach(cb => { cb.checked = true; });
+  } catch (err) {
+    setStatus(`불러오기 실패: ${err.message || err}`, 'error');
+  } finally {
+    loadBtn.disabled = false;
+    loadAllBtn.disabled = false;
+  }
+}
+
+const NATIONWIDE_BOUNDS = { minLat: 32, minLon: 124, maxLat: 39, maxLon: 132 };
+loadBtn.addEventListener('click', () => doLoad(NATIONWIDE_BOUNDS, '전국'));
+loadAllBtn.addEventListener('click', () => doLoad(NATIONWIDE_BOUNDS, '전국'));
+clearBtn.addEventListener('click', () => {
+  clearTraffic();
+  togglesBox.style.display = 'none';
+  setStatus('');
+});
+
+masterCb.addEventListener('change', e => {
+  const on = e.target.checked;
+  catCbs.forEach(cb => { cb.checked = on; });
+  toggleTrafficLayer(on);
+});
+
+catCbs.forEach(cb => {
+  cb.addEventListener('change', e => {
+    toggleTrafficCategory(e.target.dataset.cat, e.target.checked);
+    const anyOn = Array.from(catCbs).some(x => x.checked);
+    const allOn = Array.from(catCbs).every(x => x.checked);
+    masterCb.checked = allOn;
+    masterCb.indeterminate = anyOn && !allOn;
+  });
+});
+</script>
 
 <!-- TVAS Route Request Test Module -->
 <script type="module">

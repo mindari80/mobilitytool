@@ -8,6 +8,7 @@ import {
   buildIntersectionNameLabels,
   buildRangeSegments,
   buildCongestionLabels,
+  evChargerLayerKey,
 } from '../DltLogViewer/js/tvas-renderer.js';
 
 // ---- buildRouteArrowSpecs ------------------------------------------------- //
@@ -510,4 +511,24 @@ test('buildRangeSegments_skips_invalid_ranges', () => {
   const segs = buildRangeSegments(coords, items);
   assert.equal(segs.length, 1);
   assert.equal(segs[0].latlngs.length, 3);
+});
+
+// ---- evChargerLayerKey --------------------------------------------------- //
+//
+// EV chargers (ES3) belong to one of two independently-toggleable buckets:
+//   - onRoute === 0  →  'evChargerOnRoute'   (경로상)
+//   - any other value → 'evChargerNearRoute' (경로주변)
+
+test('evChargerLayerKey_onRoute_zero_maps_to_evChargerOnRoute', () => {
+  assert.equal(evChargerLayerKey({ onRoute: 0 }), 'evChargerOnRoute');
+});
+
+test('evChargerLayerKey_onRoute_nonzero_maps_to_evChargerNearRoute', () => {
+  assert.equal(evChargerLayerKey({ onRoute: 1 }), 'evChargerNearRoute');
+  assert.equal(evChargerLayerKey({ onRoute: 2 }), 'evChargerNearRoute');
+});
+
+test('evChargerLayerKey_missing_onRoute_defaults_to_evChargerNearRoute', () => {
+  assert.equal(evChargerLayerKey({}), 'evChargerNearRoute');
+  assert.equal(evChargerLayerKey({ onRoute: undefined }), 'evChargerNearRoute');
 });

@@ -21,7 +21,8 @@ let tvasLayers = {
   tollgate: null,      // 톨게이트
   restArea: null,      // 휴게소
   lane: null,          // 차로안내
-  evCharger: null,     // 전기차 충전소
+  evChargerOnRoute: null,   // 전기차 충전소 (경로상, onRoute === 0)
+  evChargerNearRoute: null, // 전기차 충전소 (경로주변, onRoute !== 0)
   direction: null,     // 방면 명칭 라벨
   roadName: null,      // 도로 명칭 라벨
   waypoint: null,      // 경유지
@@ -205,7 +206,7 @@ export function renderTvasRoute(map, tvasResult, resolvedCoords, routeIndex = 0)
     if (tollGates && tollGates.length > 0) renderTollGates(tvasLayers.tollgate, resolvedCoords, tollGates);
     if (restAreas && restAreas.length > 0) renderRestAreas(tvasLayers.restArea, resolvedCoords, restAreas);
     if (laneGuidance && laneGuidance.length > 0) renderLaneGuidance(tvasLayers.lane, resolvedCoords, laneGuidance);
-    if (evChargers && evChargers.length > 0) renderEvChargers(tvasLayers.evCharger, resolvedCoords, evChargers);
+    if (evChargers && evChargers.length > 0) renderEvChargers(tvasLayers, resolvedCoords, evChargers);
     renderDirectionNames(tvasLayers.direction, resolvedCoords, directionNames);
     renderRoadNames(tvasLayers.roadName, resolvedCoords, summaryRoadNames);
     renderWaypoints(tvasLayers.waypoint, resolvedCoords, waypoints);
@@ -528,6 +529,15 @@ function renderRestAreas(lg, coords, restAreas) {
   }
 }
 
+/**
+ * Decide which layer group an EV charger belongs to — exposed so the UI and
+ * tests can agree on the split. onRoute === 0 means the charger sits on the
+ * planned route; anything else means it's near the route.
+ */
+export function evChargerLayerKey(ev) {
+  return ev && ev.onRoute === 0 ? 'evChargerOnRoute' : 'evChargerNearRoute';
+}
+
 // Store individual charger markers for show/hide from list
 let evChargerMarkers = [];
 
@@ -576,7 +586,7 @@ function resolveEvCoord(ev, coords) {
   return lat != null ? { lat, lon } : null;
 }
 
-function renderEvChargers(lg, coords, evChargers) {
+function renderEvChargers(layers, coords, evChargers) {
   evChargerMarkers = [];
   for (let idx = 0; idx < evChargers.length; idx++) {
     const ev = evChargers[idx];
@@ -584,6 +594,8 @@ function renderEvChargers(lg, coords, evChargers) {
     if (!pos) { evChargerMarkers.push(null); continue; }
     const { lat, lon } = pos;
     const isMust = ev.mustCharge === 1;
+    const layerKey = evChargerLayerKey(ev);
+    const lg = layers[layerKey];
 
     // Must charge: 빨간 원 38px + 펄스, 일반: 초록 26px
     const size = isMust ? 38 : 26;
@@ -607,21 +619,20 @@ function renderEvChargers(lg, coords, evChargers) {
       zIndexOffset: zOff,
     }).bindPopup(popup, { maxWidth: 320 });
 
-    evChargerMarkers.push({ marker, lat, lon, isMust });
+    evChargerMarkers.push({ marker, lat, lon, isMust, layerKey });
 
-    // Only must-charge chargers are shown by default
-    if (isMust) marker.addTo(lg);
+    // Add every charger to its category layer so the category toggle
+    // (경로상/경로주변) fully controls visibility.
+    if (lg) marker.addTo(lg);
   }
 }
 
-// Show a specific non-must charger on map (called from list click)
+// Pan/zoom to a charger from the list and open its popup.
 export function showEvChargerOnMap(map, idx) {
   if (!evChargerMarkers[idx]) return;
-  const { marker, lat, lon, isMust } = evChargerMarkers[idx];
-  if (!map.hasLayer(marker)) {
-    const lg = tvasLayers.evCharger;
-    if (lg) marker.addTo(lg);
-  }
+  const { marker, lat, lon, layerKey } = evChargerMarkers[idx];
+  const lg = tvasLayers[layerKey];
+  if (lg && !map.hasLayer(lg)) lg.addTo(map);
   map.setView([lat, lon], 17, { animate: true });
   marker.openPopup();
 }
