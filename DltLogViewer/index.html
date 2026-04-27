@@ -1817,12 +1817,13 @@ tvasSummary.addEventListener('click', e => {
     const isMust    = row.classList.contains('es3-must');
     const isOnRoute = row.classList.contains('es3-onRoute');
     const isNearby  = row.classList.contains('es3-nearby');
-    // 필수 행은 must 필터로 제어
-    // 경로상/경로주변은 각 필터로 제어 (필수 행도 경로상/경로주변에 해당 가능)
-    let visible = true;
-    if (isMust && !mustOn) visible = false;
-    if (isOnRoute && !onRouteOn) visible = false;
-    if (isNearby && !nearbyOn) visible = false;
+    let visible;
+    if (isMust) {
+      // 필수 항목: mustOn이면 경로상/경로주변 필터 무관하게 표시
+      visible = mustOn;
+    } else {
+      visible = (isOnRoute && onRouteOn) || (isNearby && nearbyOn);
+    }
     row.style.display = visible ? '' : 'none';
   });
 });
