@@ -350,6 +350,60 @@ function parseRestAreas(dv, offset, size, charset) {
   return restAreas;
 }
 
+function parseComplexIntersections(dv, offset, size, charset) {
+  // MC4: 복잡교차로 정보
+  // 구성: 헤더 20byte + 복잡교차로 데이터 20byte×n + 이미지 Main Domain URL(가변) + 이미지 Main URI(n개, 가변)
+  const count    = dv.getUint16(offset, true);          // +0  UShort 2  복잡교차로 데이터 개수(n)
+  const urlSize  = dv.getInt32(offset + 8, true);       // +8  Int 4    이미지 서버 Main Domain URL 크기
+  // 2~7, 12~19 byte: reserved (추후 사양 확인 필요)
+
+  const headerSize = 20;
+  const recordSize = 20;
+  const dataStart  = offset + headerSize;
+  const urlStart   = dataStart + count * recordSize;
+  const uriStart   = urlStart + (urlSize > 0 ? urlSize : 0);
+
+  // 이미지 서버 Main Domain URL (단일, 반복되지 않음)
+  let mainDomainUrl = '';
+  if (urlSize > 0 && urlStart + urlSize <= offset + size) {
+    mainDomainUrl = readString(dv, urlStart, urlSize, charset);
+  }
+
+  const items = [];
+  for (let i = 0; i < count; i++) {
+    const base = dataStart + i * recordSize;
+    if (base + recordSize > offset + size) break;
+    const vxIdx     = dv.getUint16(base, true);         // +0  UShort 2  보간점 Idx
+    const uriOffset = dv.getUint16(base + 2, true);     // +2  UShort 2  이미지 Main URI 오프셋(uriStart 기준)
+    const uriLength = dv.getUint16(base + 4, true);     // +4  UShort 2  이미지 Main URI 길이(가정)
+    // +6~19: reserved (intersectionId/type 등 추후 사양 확인)
+
+    let mainUri = '';
+    if (uriStart + uriOffset < offset + size) {
+      const maxLen = uriLength > 0
+        ? Math.min(uriLength, offset + size - uriStart - uriOffset)
+        : Math.min(256, offset + size - uriStart - uriOffset);
+      if (maxLen > 0) {
+        mainUri = readString(dv, uriStart + uriOffset, maxLen, charset);
+      }
+    }
+
+    items.push({
+      vxIdx,
+      uriOffset,
+      uriLength,
+      mainUri,
+      imageUrl: mainDomainUrl ? (mainDomainUrl + mainUri) : mainUri,
+    });
+  }
+
+  return {
+    header: { count, urlSize },
+    mainDomainUrl,
+    items,
+  };
+}
+
 function parseForcedReroute(dv, offset, size) {
   const count = dv.getUint16(offset, true);
   const dataStart = offset + 8;
@@ -861,6 +915,9 @@ export function parseTvas(arrayBuffer) {
         break;
       case 'RS7':
         result.routeSummary = parseRouteSummary(dv, absOffset, idx.size, charset);
+        break;
+      case 'MC4':
+        result.complexIntersections = parseComplexIntersections(dv, absOffset, idx.size, charset);
         break;
       case 'WHR':
         result.truckWidth = parseTruckRestriction(dv, absOffset, idx.size, 'WHR');

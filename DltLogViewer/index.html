@@ -2543,6 +2543,24 @@ function buildSummaryHtml(s, elapsed, tvasResult, coords, respInfo) {
     html += sectionDetail('차로안내', 'TL5', tvasResult.laneGuidance.length, rows);
   }
 
+  // ---- MC4: 복잡교차로 ---- //
+  if (tvasResult.complexIntersections && tvasResult.complexIntersections.items && tvasResult.complexIntersections.items.length > 0) {
+    const mc = tvasResult.complexIntersections;
+    const headerRow = `<div style="padding:4px 6px;background:rgba(56,189,248,0.06);border-radius:4px;margin-bottom:4px;font-size:10px">
+      <div><span style="color:var(--muted)">Main Domain URL:</span> <a href="${esc(mc.mainDomainUrl)}" target="_blank" style="color:var(--accent);word-break:break-all">${esc(mc.mainDomainUrl) || '(없음)'}</a></div>
+      <div style="color:var(--muted)">URL 크기: ${mc.header.urlSize}byte | 항목 수: ${mc.items.length}</div>
+    </div>`;
+    const rows = mc.items.map((mi, i) =>
+      `<div style="padding:4px 0;border-bottom:1px solid rgba(148,163,184,0.08)">
+        [${i}] ${vx(mi.vxIdx, coords)}
+        <div style="color:var(--muted);font-size:10px;margin-top:2px">URI 오프셋:${mi.uriOffset} | 길이:${mi.uriLength}</div>
+        <div style="font-size:10px"><span style="color:var(--muted)">Main URI:</span> ${esc(mi.mainUri) || '<span style="color:var(--muted)">(없음)</span>'}</div>
+        ${mi.imageUrl ? `<a href="${esc(mi.imageUrl)}" target="_blank" style="color:var(--accent);font-size:10px;word-break:break-all">🖼 ${esc(mi.imageUrl)}</a>` : ''}
+      </div>`
+    ).join('');
+    html += sectionDetail('복잡교차로', 'MC4', mc.items.length, headerRow + rows);
+  }
+
   // ---- HW: 고속모드 ---- //
   if (tvasResult.highwayMode && tvasResult.highwayMode.length > 0) {
     const rows = tvasResult.highwayMode.map((hw, i) =>
