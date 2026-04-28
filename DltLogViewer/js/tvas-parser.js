@@ -382,13 +382,21 @@ function parseComplexIntersections(dv, offset, size, charset) {
   // URI Blob 영역 안전한 끝 위치
   const uriEnd = Math.min(uriStart + Math.max(uriBlobSize, 0), offset + size);
 
-  // null-terminated 또는 blob 끝까지 문자열 읽기
+  // URI Blob에서 offset 위치부터 문자열 읽기
+  // 1차 시도: null-terminator 까지
+  // 2차 fallback: 비-printable(0x20 미만 또는 0x7F) 만나면 종료
+  // 3차 fallback: 최대 1024byte 까지 읽음
   const readUriAt = (relOff) => {
     if (relOff < 0) return '';
     const start = uriStart + relOff;
     if (start < uriStart || start >= uriEnd) return '';
+    const maxLen = Math.min(1024, uriEnd - start);
     let end = start;
-    while (end < uriEnd && dv.getUint8(end) !== 0) end++;
+    for (; end < start + maxLen; end++) {
+      const b = dv.getUint8(end);
+      if (b === 0) break;                          // null terminator
+      if (b < 0x20 && b !== 0x09) break;          // 제어문자 (TAB 제외)
+    }
     if (end <= start) return '';
     return readString(dv, start, end - start, charset);
   };
@@ -405,8 +413,9 @@ function parseComplexIntersections(dv, offset, size, charset) {
     const imageId      = dv.getUint16(base + 12, true);      // +12 UShort 2 복잡교차로 이미지 ID
     // +14 Byte 6 Reserved
 
-    const dayUri    = hasImage ? readUriAt(dayUriOff)   : '';
-    const nightUri  = hasImage ? readUriAt(nightUriOff) : '';
+    // hasImage 와 무관하게 offset 이 유효한 범위면 항상 읽어서 표시
+    const dayUri   = readUriAt(dayUriOff);
+    const nightUri = readUriAt(nightUriOff);
 
     items.push({
       vxIdx,
@@ -417,8 +426,8 @@ function parseComplexIntersections(dv, offset, size, charset) {
       imageId,
       dayUri,
       nightUri,
-      dayImageUrl:    (hasImage && mainDomainUrl) ? (mainDomainUrl + dayUri)   : '',
-      nightImageUrl:  (hasImage && mainDomainUrl) ? (mainDomainUrl + nightUri) : '',
+      dayImageUrl:    (mainDomainUrl && dayUri)   ? (mainDomainUrl + dayUri)   : '',
+      nightImageUrl:  (mainDomainUrl && nightUri) ? (mainDomainUrl + nightUri) : '',
     });
   }
 

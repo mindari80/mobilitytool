@@ -2578,18 +2578,16 @@ function buildSummaryHtml(s, elapsed, tvasResult, coords, respInfo) {
         ${itemKv('주간 이미지 URI Offset', '<b>' + mi.dayUriOffset + '</b>')}
         ${itemKv('야간 이미지 URI Offset', '<b>' + mi.nightUriOffset + '</b>')}
         ${itemKv('복잡교차로 이미지 ID', '<b>' + mi.imageId + '</b>')}
-        ${mi.hasImage ? `
-          <div style="margin-top:4px;padding-left:8px;border-left:2px solid #fbbf24;font-size:10px;line-height:1.5">
-            <div style="color:#fbbf24;font-weight:700">☀ 주간</div>
-            <div><span style="color:var(--muted)">URI:</span> ${esc(mi.dayUri) || '<span style="color:var(--muted)">(없음)</span>'}</div>
-            ${mi.dayImageUrl ? `<div><span style="color:var(--muted)">URL:</span> <a href="${esc(mi.dayImageUrl)}" target="_blank" style="color:var(--accent);word-break:break-all">${esc(mi.dayImageUrl)}</a></div>` : ''}
-          </div>
-          <div style="margin-top:3px;padding-left:8px;border-left:2px solid #3b82f6;font-size:10px;line-height:1.5">
-            <div style="color:#3b82f6;font-weight:700">🌙 야간</div>
-            <div><span style="color:var(--muted)">URI:</span> ${esc(mi.nightUri) || '<span style="color:var(--muted)">(없음)</span>'}</div>
-            ${mi.nightImageUrl ? `<div><span style="color:var(--muted)">URL:</span> <a href="${esc(mi.nightImageUrl)}" target="_blank" style="color:var(--accent);word-break:break-all">${esc(mi.nightImageUrl)}</a></div>` : ''}
-          </div>
-        ` : ''}
+        <div style="margin-top:4px;padding-left:8px;border-left:2px solid #fbbf24;font-size:10px;line-height:1.5">
+          <div style="color:#fbbf24;font-weight:700">☀ 주간 (Offset: ${mi.dayUriOffset})</div>
+          <div><span style="color:var(--muted)">URI:</span> ${esc(mi.dayUri) || '<span style="color:var(--muted)">(없음)</span>'}</div>
+          ${mi.dayImageUrl ? `<div><span style="color:var(--muted)">URL:</span> <a href="${esc(mi.dayImageUrl)}" target="_blank" style="color:var(--accent);word-break:break-all">${esc(mi.dayImageUrl)}</a></div>` : ''}
+        </div>
+        <div style="margin-top:3px;padding-left:8px;border-left:2px solid #3b82f6;font-size:10px;line-height:1.5">
+          <div style="color:#3b82f6;font-weight:700">🌙 야간 (Offset: ${mi.nightUriOffset})</div>
+          <div><span style="color:var(--muted)">URI:</span> ${esc(mi.nightUri) || '<span style="color:var(--muted)">(없음)</span>'}</div>
+          ${mi.nightImageUrl ? `<div><span style="color:var(--muted)">URL:</span> <a href="${esc(mi.nightImageUrl)}" target="_blank" style="color:var(--accent);word-break:break-all">${esc(mi.nightImageUrl)}</a></div>` : ''}
+        </div>
       </div>`
     ).join('');
     html += sectionDetail('복잡교차로', 'MC4', mc.items.length, headerRow + rows);
