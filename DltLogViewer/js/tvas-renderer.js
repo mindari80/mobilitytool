@@ -35,6 +35,7 @@ let tvasLayers = {
   highwayMode: null,   // 고속모드
   rpLink: null,        // RP 링크 (RD5)
   truck: null,         // 화물차 제한구간
+  complexIntersection: null, // 복잡교차로 (MC4)
 };
 
 // ---- Color schemes -------------------------------------------------------- //
@@ -469,7 +470,7 @@ export function renderTvasRoute(map, tvasResult, resolvedCoords, routeIndex = 0)
           directionNames, intersectionNames, laneGuidance, evChargers, routeSummary,
           waypoints, incidents, congestion, forcedReroute,
           trafficInfo, cityBoundary, highwayMode, rpLinks,
-          truckWidth, truckHeight, truckWeight } = tvasResult;
+          truckWidth, truckHeight, truckWeight, complexIntersections } = tvasResult;
   const routeItems = (routeSummary && routeSummary.items) ? routeSummary.items : [];
   const summaryRoadNames = (routeSummary && routeSummary.roadNames) ? routeSummary.roadNames : [];
   const rpLinkItems = (rpLinks && rpLinks.items) ? rpLinks.items : [];
@@ -498,6 +499,9 @@ export function renderTvasRoute(map, tvasResult, resolvedCoords, routeIndex = 0)
     renderHighwayMode(tvasLayers.highwayMode, resolvedCoords, highwayMode);
     renderRpLinks(tvasLayers.rpLink, resolvedCoords, rpLinkItems);
     renderTruckRestrictions(tvasLayers.truck, resolvedCoords, { truckWidth, truckHeight, truckWeight });
+    if (complexIntersections && complexIntersections.items && complexIntersections.items.length > 0) {
+      renderComplexIntersections(tvasLayers.complexIntersection, resolvedCoords, complexIntersections);
+    }
   }
 
   // Add all layers to map
@@ -848,6 +852,81 @@ function renderDangerAreas(lg, coords, dangerAreas) {
         iconSize: [sz, sz], iconAnchor: [sz/2, sz/2],
       }),
     }).bindPopup(popup, { maxWidth: 360 }).addTo(lg);
+  }
+}
+
+function renderComplexIntersections(lg, coords, mc) {
+  if (!mc || !mc.items) return;
+  for (let i = 0; i < mc.items.length; i++) {
+    const mi = mc.items[i];
+    if (mi.vxIdx >= coords.length) continue;
+    const c = coords[mi.vxIdx];
+    if (!c) continue;
+
+    const dayUrl   = mi.dayImageUrl   || '';
+    const nightUrl = mi.nightImageUrl || '';
+
+    // 팝업: 탭 형태로 주간/야간 전환 가능
+    const tabId = `mc4-${mi.vxIdx}-${i}`;
+    const imgStyle = 'max-width:320px;max-height:320px;border-radius:6px;border:1px solid #475569;background:#0f172a;display:block';
+    const tabStyle = 'cursor:pointer;padding:4px 10px;border-radius:6px 6px 0 0;font-size:11px;font-weight:700;border:1px solid #475569;border-bottom:none';
+    const dayTab   = `<span class="${tabId}-tab" data-mode="day" style="${tabStyle};background:#fbbf24;color:#1e293b">☀ 주간</span>`;
+    const nightTab = `<span class="${tabId}-tab" data-mode="night" style="${tabStyle};background:rgba(59,130,246,0.3);color:#93c5fd;margin-left:2px">🌙 야간</span>`;
+
+    const popup = `
+      <div style="font-family:inherit;min-width:260px">
+        <div style="font-weight:700;font-size:13px;margin-bottom:4px;color:#1e293b">🚦 복잡교차로</div>
+        <div style="font-size:11px;color:#64748b;margin-bottom:6px">VX:${mi.vxIdx} | 이미지ID:${mi.imageId} | 음성코드:${mi.voiceCode}</div>
+        <div style="display:flex;gap:0;margin-bottom:0">${dayTab}${nightTab}</div>
+        <div style="border:1px solid #475569;padding:6px;background:#1e293b;border-radius:0 6px 6px 6px">
+          ${dayUrl ? `<img class="${tabId}-img-day" src="${esc(dayUrl)}" style="${imgStyle}" alt="주간"
+              onerror="this.outerHTML='<div style=\\'color:#f87171;font-size:11px;padding:20px;text-align:center\\'>이미지 로드 실패<br><span style=\\'color:#94a3b8;word-break:break-all;font-size:10px\\'>${esc(dayUrl)}</span></div>'">` : '<div style="color:#94a3b8;font-size:11px;padding:20px;text-align:center">주간 이미지 없음</div>'}
+          ${nightUrl ? `<img class="${tabId}-img-night" src="${esc(nightUrl)}" style="${imgStyle};display:none" alt="야간"
+              onerror="this.outerHTML='<div class=&quot;${tabId}-img-night&quot; style=\\'color:#f87171;font-size:11px;padding:20px;text-align:center;display:none\\'>이미지 로드 실패<br><span style=\\'color:#94a3b8;word-break:break-all;font-size:10px\\'>${esc(nightUrl)}</span></div>'">` : ''}
+        </div>
+        <div style="margin-top:6px;font-size:10px;color:#64748b;word-break:break-all">
+          <div><b>주간:</b> ${dayUrl ? `<a href="${esc(dayUrl)}" target="_blank" style="color:#3b82f6">${esc(dayUrl)}</a>` : '없음'}</div>
+          <div><b>야간:</b> ${nightUrl ? `<a href="${esc(nightUrl)}" target="_blank" style="color:#3b82f6">${esc(nightUrl)}</a>` : '없음'}</div>
+        </div>
+      </div>
+    `;
+
+    const popupOpts = { maxWidth: 360, className: `mc4-popup ${tabId}-popup` };
+
+    const marker = L.marker([c.lat, c.lon], {
+      icon: L.divIcon({
+        className: '',
+        html: `<div style="width:30px;height:30px;line-height:28px;text-align:center;background:linear-gradient(135deg,#7c3aed 0%,#a855f7 100%);border-radius:50%;font-size:14px;box-shadow:0 2px 6px rgba(0,0,0,.5);border:2px solid #fff;color:#fff;font-weight:700">🚦</div>`,
+        iconSize: [30, 30],
+        iconAnchor: [15, 15],
+      }),
+    }).bindPopup(popup, popupOpts).addTo(lg);
+
+    // popup 열린 후 탭 클릭 처리
+    marker.on('popupopen', (e) => {
+      const popupEl = e.popup.getElement();
+      if (!popupEl) return;
+      const tabs   = popupEl.querySelectorAll(`.${tabId}-tab`);
+      const dayImg = popupEl.querySelector(`.${tabId}-img-day`);
+      const nightImg = popupEl.querySelector(`.${tabId}-img-night`);
+      tabs.forEach(t => {
+        t.addEventListener('click', () => {
+          const mode = t.dataset.mode;
+          tabs.forEach(tt => {
+            const isActive = tt.dataset.mode === mode;
+            if (tt.dataset.mode === 'day') {
+              tt.style.background = isActive ? '#fbbf24' : 'rgba(251,191,36,0.3)';
+              tt.style.color = isActive ? '#1e293b' : '#fbbf24';
+            } else {
+              tt.style.background = isActive ? '#3b82f6' : 'rgba(59,130,246,0.3)';
+              tt.style.color = isActive ? '#fff' : '#93c5fd';
+            }
+          });
+          if (dayImg)   dayImg.style.display   = mode === 'day'   ? 'block' : 'none';
+          if (nightImg) nightImg.style.display = mode === 'night' ? 'block' : 'none';
+        });
+      });
+    });
   }
 }
 

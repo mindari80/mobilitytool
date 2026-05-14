@@ -350,6 +350,94 @@ function parseRestAreas(dv, offset, size, charset) {
   return restAreas;
 }
 
+function parseComplexIntersections(dv, offset, size, charset) {
+  // MC4: 복잡교차로 정보
+  // 구성: 헤더 20byte + 복잡교차로 데이터 20byte×n + 이미지 서버 Main Domain URL + 이미지 URI Blob
+  // 헤더 20byte
+  const count       = dv.getUint16(offset, true);            // +0  UShort 2  복잡교차로 데이터 총 개수(n)
+  const infoType    = dv.getUint8(offset + 2);                // +2  Byte 1   정보 인덱스 type (0x01)
+  const provideType = dv.getUint8(offset + 3);                // +3  Byte 1   복잡교차로 제공 타입
+  const infoId      = readAscii(dv, offset + 4, 4);           // +4  Char 4   정보 인덱스 ID
+  const resolution  = [
+    dv.getUint8(offset + 8),
+    dv.getUint8(offset + 9),
+    dv.getUint8(offset + 10),
+    dv.getUint8(offset + 11),
+  ];                                                            // +8  Byte 4   해상도
+  const urlSize     = dv.getInt32(offset + 12, true);         // +12 Int 4    이미지 서버 Main Domain URL 크기
+  const uriBlobSize = dv.getInt32(offset + 16, true);         // +16 Int 4    이미지 URI 전체 크기
+
+  const headerSize = 20;
+  const recordSize = 20;
+  const dataStart  = offset + headerSize;
+  const urlStart   = dataStart + count * recordSize;
+  const uriStart   = urlStart + (urlSize > 0 ? urlSize : 0);
+
+  // 이미지 서버 Main Domain URL (단일, 반복되지 않음)
+  let mainDomainUrl = '';
+  if (urlSize > 0 && urlStart + urlSize <= offset + size) {
+    mainDomainUrl = readString(dv, urlStart, urlSize, charset);
+  }
+
+  // URI Blob 영역 안전한 끝 위치
+  const uriEnd = Math.min(uriStart + Math.max(uriBlobSize, 0), offset + size);
+
+  // URI Blob에서 offset 위치부터 문자열 읽기
+  // 1차 시도: null-terminator 까지
+  // 2차 fallback: 비-printable(0x20 미만 또는 0x7F) 만나면 종료
+  // 3차 fallback: 최대 1024byte 까지 읽음
+  const readUriAt = (relOff) => {
+    if (relOff < 0) return '';
+    const start = uriStart + relOff;
+    if (start < uriStart || start >= uriEnd) return '';
+    const maxLen = Math.min(1024, uriEnd - start);
+    let end = start;
+    for (; end < start + maxLen; end++) {
+      const b = dv.getUint8(end);
+      if (b === 0) break;                          // null terminator
+      if (b < 0x20 && b !== 0x09) break;          // 제어문자 (TAB 제외)
+    }
+    if (end <= start) return '';
+    return readString(dv, start, end - start, charset);
+  };
+
+  const items = [];
+  for (let i = 0; i < count; i++) {
+    const base = dataStart + i * recordSize;
+    if (base + recordSize > offset + size) break;
+    const vxIdx        = dv.getUint16(base, true);          // +0  UShort 2  해당 보간점 Idx
+    const voiceCode    = dv.getUint8(base + 2);              // +2  Byte 1   복잡교차로 음성 코드
+    const hasImage     = dv.getUint8(base + 3);              // +3  Byte 1   복잡교차로 이미지 존재여부 (0:없음, 1:있음)
+    const dayUriOff    = dv.getInt32(base + 4, true);        // +4  Int 4    주간 이미지 URI Offset
+    const nightUriOff  = dv.getInt32(base + 8, true);        // +8  Int 4    야간 이미지 URI Offset
+    const imageId      = dv.getUint16(base + 12, true);      // +12 UShort 2 복잡교차로 이미지 ID
+    // +14 Byte 6 Reserved
+
+    // hasImage 와 무관하게 offset 이 유효한 범위면 항상 읽어서 표시
+    const dayUri   = readUriAt(dayUriOff);
+    const nightUri = readUriAt(nightUriOff);
+
+    items.push({
+      vxIdx,
+      voiceCode,
+      hasImage,
+      dayUriOffset:   dayUriOff,
+      nightUriOffset: nightUriOff,
+      imageId,
+      dayUri,
+      nightUri,
+      dayImageUrl:    (mainDomainUrl && dayUri)   ? (mainDomainUrl + dayUri)   : '',
+      nightImageUrl:  (mainDomainUrl && nightUri) ? (mainDomainUrl + nightUri) : '',
+    });
+  }
+
+  return {
+    header: { count, infoType, provideType, infoId, resolution, urlSize, uriBlobSize },
+    mainDomainUrl,
+    items,
+  };
+}
+
 function parseForcedReroute(dv, offset, size) {
   const count = dv.getUint16(offset, true);
   const dataStart = offset + 8;
@@ -861,6 +949,9 @@ export function parseTvas(arrayBuffer) {
         break;
       case 'RS7':
         result.routeSummary = parseRouteSummary(dv, absOffset, idx.size, charset);
+        break;
+      case 'MC4':
+        result.complexIntersections = parseComplexIntersections(dv, absOffset, idx.size, charset);
         break;
       case 'WHR':
         result.truckWidth = parseTruckRestriction(dv, absOffset, idx.size, 'WHR');
