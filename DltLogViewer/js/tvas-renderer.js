@@ -521,6 +521,8 @@ export function clearTvasRoute(map) {
     }
     tvasLayers[key] = null;
   });
+  selectedRpLink = null;
+  selectedTrafficInfo = null;
 }
 
 export function getTvasLayers() { return tvasLayers; }
@@ -1350,17 +1352,39 @@ function renderCongestion(lg, coords, items) {
   }
 }
 
+/**
+ * LT2 선 스타일 — 선택 시 흰색·굵게·실선으로 강조.
+ * Pure: (isSelected, congestionColor) → Leaflet path options.
+ */
+export function trafficInfoStyle(isSelected, color) {
+  return isSelected
+    ? { color: '#ffffff', weight: 6, opacity: 1 }
+    : { color, weight: 2, opacity: 0.85, dashArray: '2,6' };
+}
+
+// 현재 선택된 LT2 폴리라인 (한 번에 하나만 강조)
+let selectedTrafficInfo = null;
+
 function renderTrafficInfo(lg, coords, items) {
-  // LT2: TSD링크교통정보 — 혼잡도별 색, 경로보다 얇게
+  // LT2: TSD링크교통정보 — 혼잡도별 색, 경로보다 얇게, 클릭 시 강조
+  selectedTrafficInfo = null;
   const segs = buildRangeSegments(coords, items);
   for (const { latlngs, item } of segs) {
     const congChar = String.fromCharCode(item.congestion);
     const color = CONGESTION_COLORS[congChar] || CONGESTION_FALLBACK_COLOR;
     const congName = CONGESTION_NAMES[congChar] || `코드 ${item.congestion}`;
     const popup = `<b>교통정보(LT2)</b><br>속도: ${item.speed}km/h<br>혼잡도: ${congName}<br>VX: ${item.startVxIdx}~${item.endVxIdx}`;
-    L.polyline(latlngs, { color, weight: 2, opacity: 0.85, dashArray: '2,6' })
-      .bindPopup(popup, { maxWidth: 260 })
-      .addTo(lg);
+    const pl = L.polyline(latlngs, trafficInfoStyle(false, color))
+      .bindPopup(popup, { maxWidth: 260 });
+    pl.on('click', () => {
+      if (selectedTrafficInfo && selectedTrafficInfo.pl !== pl) {
+        selectedTrafficInfo.pl.setStyle(trafficInfoStyle(false, selectedTrafficInfo.color));
+      }
+      selectedTrafficInfo = { pl, color };
+      pl.setStyle(trafficInfoStyle(true, color));
+      pl.bringToFront();
+    });
+    pl.addTo(lg);
   }
 }
 
@@ -1374,15 +1398,51 @@ function renderHighwayMode(lg, coords, segments) {
   }
 }
 
+/**
+ * RD5 RP링크 팝업 HTML — 선을 클릭하면 링크ID/Mesh ID/방향/소요시간을 보여준다.
+ * Pure: item → HTML string.
+ */
+export function buildRpLinkPopup(item) {
+  const dirText = item.direction === 1 ? '역방향' : '정방향';
+  return `<b>RP링크</b><br>` +
+    `링크ID: ${item.linkId}<br>` +
+    `Mesh ID: ${item.meshCode}<br>` +
+    `방향: ${dirText}<br>` +
+    `소요시간: ${item.ridTime}초<br>` +
+    `RID: ${item.rid}` +
+    `${item.superCruise ? '<br>Super Cruise' : ''}` +
+    `<br>VX: ${item.startVxIdx}~${item.endVxIdx}`;
+}
+
+/**
+ * RP링크 선 스타일 — 선택 시 다른 색·더 굵게·더 진하게.
+ * Pure: isSelected → Leaflet path options.
+ */
+export function rpLinkStyle(isSelected) {
+  return isSelected
+    ? { color: '#dc2626', weight: 6, opacity: 1 }
+    : { color: '#eab308', weight: 2, opacity: 0.7 };
+}
+
+// 현재 선택된 RP링크 폴리라인 (한 번에 하나만 강조)
+let selectedRpLink = null;
+
 function renderRpLinks(lg, coords, items) {
-  // RD5: RP 링크 — 노란색 얇은 선 + 방향 메타
+  // RD5: RP 링크 — 시작~마지막 보간점 구간을 노란 선으로, 클릭 시 메타 팝업 + 강조
+  selectedRpLink = null;
   const segs = buildRangeSegments(coords, items);
   for (const { latlngs, item } of segs) {
-    const dirText = item.direction === 1 ? '역방향' : '정방향';
-    const popup = `<b>RP링크</b><br>RID: ${item.rid}<br>소요: ${item.ridTime}초<br>LinkID: ${item.linkId}<br>Mesh: ${item.meshCode}<br>방향: ${dirText}${item.superCruise ? '<br>Super Cruise' : ''}<br>VX: ${item.startVxIdx}~${item.endVxIdx}`;
-    L.polyline(latlngs, { color: '#eab308', weight: 2, opacity: 0.7 })
-      .bindPopup(popup, { maxWidth: 280 })
-      .addTo(lg);
+    const pl = L.polyline(latlngs, rpLinkStyle(false))
+      .bindPopup(buildRpLinkPopup(item), { maxWidth: 280 });
+    pl.on('click', () => {
+      if (selectedRpLink && selectedRpLink !== pl) {
+        selectedRpLink.setStyle(rpLinkStyle(false));
+      }
+      selectedRpLink = pl;
+      pl.setStyle(rpLinkStyle(true));
+      pl.bringToFront();
+    });
+    pl.addTo(lg);
   }
 }
 

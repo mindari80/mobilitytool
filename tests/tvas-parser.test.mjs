@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseRouteSummary, parseLaneGuidance } from '../DltLogViewer/js/tvas-parser.js';
+import { parseRouteSummary, parseLaneGuidance, parseRpLinks } from '../DltLogViewer/js/tvas-parser.js';
 import { laneIconHtml } from '../DltLogViewer/js/tvas-renderer.js';
 
 // ---- RS7 parseRouteSummary ----------------------------------------------- //
@@ -253,4 +253,105 @@ test('laneIconHtml does NOT render invalid arrow on lanes outside the bitmap', (
   // ↑ should appear exactly once (only on lane 1)
   const upCount = (html.match(/↑/g) || []).length;
   assert.equal(upCount, 1, `expected exactly 1 ↑, got ${upCount} in ${html}`);
+});
+
+// ---- RD5 parseRpLinks ----------------------------------------------------- //
+//
+// Fixture spec (TVAS v5.9 — RD5 RPLINK 정보):
+//   Header (40B):
+//     +0  UShort  count (n)
+//     +2  Byte    infoType (0x02)
+//     +3  Byte    reserved
+//     +4  Char[4] infoId
+//     +8  Int     initDistance (초기탐색 직선거리)
+//     +12 Char[24] sessionId (초기탐색 SessionID)
+//     +36 Int     tollBlobSize (톨게이트ID 데이터 전체 크기)
+//
+//   RpLink DATA (24B × n):
+//     +0  UShort  startVxIdx (시작 보간점 Idx)
+//     +2  UShort  endVxIdx   (마지막 보간점 Idx)
+//     +4  Int     rid
+//     +8  Int     ridTime    (RID 소요시간, sec)
+//     +12 UShort  meshCode
+//     +14 Int     linkId
+//     +18 Byte    direction      (0:정방향, 1:역방향)
+//     +19 Byte    compareTarget  (경로비교대상)
+//     +20 Byte    superCruise
+//     +21 Byte[3] reserved
+
+function buildRd5Fixture() {
+  const HEADER = 40, REC = 24, count = 2;
+  const total = HEADER + REC * count;
+  const buf = new ArrayBuffer(total);
+  const dv = new DataView(buf);
+
+  // Header
+  dv.setUint16(0, count, true);
+  dv.setUint8(2, 0x02);                              // infoType
+  dv.setUint8(3, 0);                                 // reserved
+  'AB12'.split('').forEach((c, i) => dv.setUint8(4 + i, c.charCodeAt(0)));
+  dv.setInt32(8, 123456, true);                      // initDistance
+  'SESSION-XYZ'.split('').forEach((c, i) => dv.setUint8(12 + i, c.charCodeAt(0)));
+  dv.setInt32(36, 0, true);                          // tollBlobSize
+
+  // Record 0
+  let b = HEADER;
+  dv.setUint16(b + 0, 0, true);     // startVxIdx
+  dv.setUint16(b + 2, 5, true);     // endVxIdx
+  dv.setInt32(b + 4, 1001, true);   // rid
+  dv.setInt32(b + 8, 60, true);     // ridTime
+  dv.setUint16(b + 12, 45678, true);// meshCode
+  dv.setInt32(b + 14, 888777, true);// linkId
+  dv.setUint8(b + 18, 0);           // direction 정방향
+  dv.setUint8(b + 19, 1);           // compareTarget
+  dv.setUint8(b + 20, 0);           // superCruise
+
+  // Record 1
+  b = HEADER + REC;
+  dv.setUint16(b + 0, 5, true);
+  dv.setUint16(b + 2, 12, true);
+  dv.setInt32(b + 4, 2002, true);
+  dv.setInt32(b + 8, 180, true);
+  dv.setUint16(b + 12, 45679, true);
+  dv.setInt32(b + 14, 999000, true);
+  dv.setUint8(b + 18, 1);           // direction 역방향
+  dv.setUint8(b + 19, 0);
+  dv.setUint8(b + 20, 1);           // superCruise
+
+  return { dv, size: total };
+}
+
+test('parseRpLinks header is 40 bytes and reads count + infoType + infoId', () => {
+  const { dv, size } = buildRd5Fixture();
+  const { header } = parseRpLinks(dv, 0, size, 'utf-8');
+  assert.equal(header.count, 2);
+  assert.equal(header.infoType, 0x02);
+  assert.equal(header.infoId, 'AB12');
+  assert.equal(header.initDistance, 123456);
+  assert.equal(header.tollBlobSize, 0);
+});
+
+test('parseRpLinks reads 24-byte records with correct field offsets', () => {
+  const { dv, size } = buildRd5Fixture();
+  const { items } = parseRpLinks(dv, 0, size, 'utf-8');
+  assert.equal(items.length, 2);
+
+  const [r0, r1] = items;
+  assert.deepEqual(
+    { s: r0.startVxIdx, e: r0.endVxIdx, rid: r0.rid, t: r0.ridTime,
+      mesh: r0.meshCode, link: r0.linkId, dir: r0.direction, sc: r0.superCruise },
+    { s: 0, e: 5, rid: 1001, t: 60, mesh: 45678, link: 888777, dir: 0, sc: 0 },
+  );
+  assert.deepEqual(
+    { s: r1.startVxIdx, e: r1.endVxIdx, rid: r1.rid, t: r1.ridTime,
+      mesh: r1.meshCode, link: r1.linkId, dir: r1.direction, sc: r1.superCruise },
+    { s: 5, e: 12, rid: 2002, t: 180, mesh: 45679, link: 999000, dir: 1, sc: 1 },
+  );
+});
+
+test('parseRpLinks stops cleanly when records exceed section size', () => {
+  const { dv } = buildRd5Fixture();
+  // Claim a size that only covers the header + 1 record (40 + 24 = 64).
+  const { items } = parseRpLinks(dv, 0, 64, 'utf-8');
+  assert.equal(items.length, 1);
 });

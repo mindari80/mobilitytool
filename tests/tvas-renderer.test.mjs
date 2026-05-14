@@ -9,6 +9,9 @@ import {
   buildRangeSegments,
   buildCongestionLabels,
   evChargerLayerKey,
+  buildRpLinkPopup,
+  rpLinkStyle,
+  trafficInfoStyle,
 } from '../DltLogViewer/js/tvas-renderer.js';
 
 // ---- buildRouteArrowSpecs ------------------------------------------------- //
@@ -531,4 +534,81 @@ test('evChargerLayerKey_onRoute_nonzero_maps_to_evChargerNearRoute', () => {
 test('evChargerLayerKey_missing_onRoute_defaults_to_evChargerNearRoute', () => {
   assert.equal(evChargerLayerKey({}), 'evChargerNearRoute');
   assert.equal(evChargerLayerKey({ onRoute: undefined }), 'evChargerNearRoute');
+});
+
+// ---- buildRpLinkPopup ---------------------------------------------------- //
+//
+// RD5 RP링크 선을 클릭하면 링크ID / Mesh ID / 방향 / 소요시간을 보여준다.
+
+test('buildRpLinkPopup shows linkId, meshCode, direction and ridTime', () => {
+  const html = buildRpLinkPopup({
+    startVxIdx: 0, endVxIdx: 5, rid: 1001, ridTime: 90,
+    meshCode: 45678, linkId: 888777, direction: 0, superCruise: 0,
+  });
+  assert.match(html, /888777/);          // 링크ID
+  assert.match(html, /45678/);           // Mesh ID
+  assert.match(html, /정방향/);          // 방향
+  assert.match(html, /90/);              // 소요시간(sec)
+});
+
+test('buildRpLinkPopup labels direction 1 as 역방향', () => {
+  const html = buildRpLinkPopup({
+    startVxIdx: 5, endVxIdx: 9, rid: 2002, ridTime: 30,
+    meshCode: 1, linkId: 2, direction: 1, superCruise: 0,
+  });
+  assert.match(html, /역방향/);
+  assert.doesNotMatch(html, /정방향/);
+});
+
+// ---- rpLinkStyle --------------------------------------------------------- //
+//
+// 선택된 RP링크 선은 기본 선보다 다른 색·더 굵고·더 진하게 보여준다.
+
+test('rpLinkStyle default is the thin yellow line', () => {
+  const s = rpLinkStyle(false);
+  assert.equal(s.color, '#eab308');
+  assert.equal(s.weight, 2);
+  assert.equal(s.opacity, 0.7);
+});
+
+test('rpLinkStyle selected uses a different color, thicker weight, higher opacity', () => {
+  const def = rpLinkStyle(false);
+  const sel = rpLinkStyle(true);
+  assert.notEqual(sel.color, def.color);          // 다른 색
+  assert.ok(sel.weight > def.weight, 'selected must be thicker');   // 더 굵게
+  assert.ok(sel.opacity > def.opacity, 'selected must be more opaque'); // 더 진하게
+});
+
+test('buildRpLinkPopup notes Super Cruise only when flagged', () => {
+  const on = buildRpLinkPopup({
+    startVxIdx: 0, endVxIdx: 1, rid: 1, ridTime: 1,
+    meshCode: 1, linkId: 1, direction: 0, superCruise: 1,
+  });
+  const off = buildRpLinkPopup({
+    startVxIdx: 0, endVxIdx: 1, rid: 1, ridTime: 1,
+    meshCode: 1, linkId: 1, direction: 0, superCruise: 0,
+  });
+  assert.match(on, /Super Cruise/i);
+  assert.doesNotMatch(off, /Super Cruise/i);
+});
+
+// ---- trafficInfoStyle ------------------------------------------------------- //
+//
+// LT2 선택 강조: 기본 혼잡도 색 얇은 대시선 → 선택 흰색 굵은 실선.
+
+test('trafficInfoStyle default keeps congestion color and is thin dashed', () => {
+  const color = '#ef4444';
+  const s = trafficInfoStyle(false, color);
+  assert.equal(s.color, color);
+  assert.equal(s.weight, 2);
+  assert.ok(s.dashArray, 'default should have dashArray');
+});
+
+test('trafficInfoStyle selected is thicker, more opaque, and has no dashArray', () => {
+  const color = '#22c55e';
+  const def = trafficInfoStyle(false, color);
+  const sel = trafficInfoStyle(true, color);
+  assert.ok(sel.weight > def.weight, 'selected must be thicker');
+  assert.ok(sel.opacity >= def.opacity, 'selected must be at least as opaque');
+  assert.ok(!sel.dashArray, 'selected should not have dashArray');
 });
