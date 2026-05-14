@@ -10,6 +10,7 @@ import {
   buildCongestionLabels,
   evChargerLayerKey,
   buildRpLinkPopup,
+  rpLinkStyle,
 } from '../DltLogViewer/js/tvas-renderer.js';
 
 // ---- buildRouteArrowSpecs ------------------------------------------------- //
@@ -556,6 +557,25 @@ test('buildRpLinkPopup labels direction 1 as 역방향', () => {
   });
   assert.match(html, /역방향/);
   assert.doesNotMatch(html, /정방향/);
+});
+
+// ---- rpLinkStyle --------------------------------------------------------- //
+//
+// 선택된 RP링크 선은 기본 선보다 다른 색·더 굵고·더 진하게 보여준다.
+
+test('rpLinkStyle default is the thin yellow line', () => {
+  const s = rpLinkStyle(false);
+  assert.equal(s.color, '#eab308');
+  assert.equal(s.weight, 2);
+  assert.equal(s.opacity, 0.7);
+});
+
+test('rpLinkStyle selected uses a different color, thicker weight, higher opacity', () => {
+  const def = rpLinkStyle(false);
+  const sel = rpLinkStyle(true);
+  assert.notEqual(sel.color, def.color);          // 다른 색
+  assert.ok(sel.weight > def.weight, 'selected must be thicker');   // 더 굵게
+  assert.ok(sel.opacity > def.opacity, 'selected must be more opaque'); // 더 진하게
 });
 
 test('buildRpLinkPopup notes Super Cruise only when flagged', () => {

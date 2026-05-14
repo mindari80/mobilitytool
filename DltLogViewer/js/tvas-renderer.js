@@ -519,6 +519,7 @@ export function clearTvasRoute(map) {
     }
     tvasLayers[key] = null;
   });
+  selectedRpLink = null;
 }
 
 export function getTvasLayers() { return tvasLayers; }
@@ -1388,13 +1389,35 @@ export function buildRpLinkPopup(item) {
     `<br>VX: ${item.startVxIdx}~${item.endVxIdx}`;
 }
 
+/**
+ * RP링크 선 스타일 — 선택 시 다른 색·더 굵게·더 진하게.
+ * Pure: isSelected → Leaflet path options.
+ */
+export function rpLinkStyle(isSelected) {
+  return isSelected
+    ? { color: '#dc2626', weight: 6, opacity: 1 }
+    : { color: '#eab308', weight: 2, opacity: 0.7 };
+}
+
+// 현재 선택된 RP링크 폴리라인 (한 번에 하나만 강조)
+let selectedRpLink = null;
+
 function renderRpLinks(lg, coords, items) {
-  // RD5: RP 링크 — 시작~마지막 보간점 구간을 노란 선으로, 클릭 시 메타 팝업
+  // RD5: RP 링크 — 시작~마지막 보간점 구간을 노란 선으로, 클릭 시 메타 팝업 + 강조
+  selectedRpLink = null;
   const segs = buildRangeSegments(coords, items);
   for (const { latlngs, item } of segs) {
-    L.polyline(latlngs, { color: '#eab308', weight: 2, opacity: 0.7 })
-      .bindPopup(buildRpLinkPopup(item), { maxWidth: 280 })
-      .addTo(lg);
+    const pl = L.polyline(latlngs, rpLinkStyle(false))
+      .bindPopup(buildRpLinkPopup(item), { maxWidth: 280 });
+    pl.on('click', () => {
+      if (selectedRpLink && selectedRpLink !== pl) {
+        selectedRpLink.setStyle(rpLinkStyle(false));
+      }
+      selectedRpLink = pl;
+      pl.setStyle(rpLinkStyle(true));
+      pl.bringToFront();
+    });
+    pl.addTo(lg);
   }
 }
 
