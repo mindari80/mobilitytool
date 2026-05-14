@@ -9,6 +9,7 @@ import {
   buildRangeSegments,
   buildCongestionLabels,
   evChargerLayerKey,
+  buildRpLinkPopup,
 } from '../DltLogViewer/js/tvas-renderer.js';
 
 // ---- buildRouteArrowSpecs ------------------------------------------------- //
@@ -531,4 +532,41 @@ test('evChargerLayerKey_onRoute_nonzero_maps_to_evChargerNearRoute', () => {
 test('evChargerLayerKey_missing_onRoute_defaults_to_evChargerNearRoute', () => {
   assert.equal(evChargerLayerKey({}), 'evChargerNearRoute');
   assert.equal(evChargerLayerKey({ onRoute: undefined }), 'evChargerNearRoute');
+});
+
+// ---- buildRpLinkPopup ---------------------------------------------------- //
+//
+// RD5 RP링크 선을 클릭하면 링크ID / Mesh ID / 방향 / 소요시간을 보여준다.
+
+test('buildRpLinkPopup shows linkId, meshCode, direction and ridTime', () => {
+  const html = buildRpLinkPopup({
+    startVxIdx: 0, endVxIdx: 5, rid: 1001, ridTime: 90,
+    meshCode: 45678, linkId: 888777, direction: 0, superCruise: 0,
+  });
+  assert.match(html, /888777/);          // 링크ID
+  assert.match(html, /45678/);           // Mesh ID
+  assert.match(html, /정방향/);          // 방향
+  assert.match(html, /90/);              // 소요시간(sec)
+});
+
+test('buildRpLinkPopup labels direction 1 as 역방향', () => {
+  const html = buildRpLinkPopup({
+    startVxIdx: 5, endVxIdx: 9, rid: 2002, ridTime: 30,
+    meshCode: 1, linkId: 2, direction: 1, superCruise: 0,
+  });
+  assert.match(html, /역방향/);
+  assert.doesNotMatch(html, /정방향/);
+});
+
+test('buildRpLinkPopup notes Super Cruise only when flagged', () => {
+  const on = buildRpLinkPopup({
+    startVxIdx: 0, endVxIdx: 1, rid: 1, ridTime: 1,
+    meshCode: 1, linkId: 1, direction: 0, superCruise: 1,
+  });
+  const off = buildRpLinkPopup({
+    startVxIdx: 0, endVxIdx: 1, rid: 1, ridTime: 1,
+    meshCode: 1, linkId: 1, direction: 0, superCruise: 0,
+  });
+  assert.match(on, /Super Cruise/i);
+  assert.doesNotMatch(off, /Super Cruise/i);
 });

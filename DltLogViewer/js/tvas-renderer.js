@@ -1293,14 +1293,28 @@ function renderHighwayMode(lg, coords, segments) {
   }
 }
 
+/**
+ * RD5 RP링크 팝업 HTML — 선을 클릭하면 링크ID/Mesh ID/방향/소요시간을 보여준다.
+ * Pure: item → HTML string.
+ */
+export function buildRpLinkPopup(item) {
+  const dirText = item.direction === 1 ? '역방향' : '정방향';
+  return `<b>RP링크</b><br>` +
+    `링크ID: ${item.linkId}<br>` +
+    `Mesh ID: ${item.meshCode}<br>` +
+    `방향: ${dirText}<br>` +
+    `소요시간: ${item.ridTime}초<br>` +
+    `RID: ${item.rid}` +
+    `${item.superCruise ? '<br>Super Cruise' : ''}` +
+    `<br>VX: ${item.startVxIdx}~${item.endVxIdx}`;
+}
+
 function renderRpLinks(lg, coords, items) {
-  // RD5: RP 링크 — 노란색 얇은 선 + 방향 메타
+  // RD5: RP 링크 — 시작~마지막 보간점 구간을 노란 선으로, 클릭 시 메타 팝업
   const segs = buildRangeSegments(coords, items);
   for (const { latlngs, item } of segs) {
-    const dirText = item.direction === 1 ? '역방향' : '정방향';
-    const popup = `<b>RP링크</b><br>RID: ${item.rid}<br>소요: ${item.ridTime}초<br>LinkID: ${item.linkId}<br>Mesh: ${item.meshCode}<br>방향: ${dirText}${item.superCruise ? '<br>Super Cruise' : ''}<br>VX: ${item.startVxIdx}~${item.endVxIdx}`;
     L.polyline(latlngs, { color: '#eab308', weight: 2, opacity: 0.7 })
-      .bindPopup(popup, { maxWidth: 280 })
+      .bindPopup(buildRpLinkPopup(item), { maxWidth: 280 })
       .addTo(lg);
   }
 }

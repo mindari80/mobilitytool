@@ -541,7 +541,7 @@ function parseWaypoints(dv, offset, size, charset) {
   return items;
 }
 
-function parseRpLinks(dv, offset, size, charset) {
+export function parseRpLinks(dv, offset, size, charset) {
   // RD5: RPLINK 정보 — 헤더 40byte + 데이터 24byte×n + 톨게이트ID blob
   const count = dv.getUint16(offset, true);          // +0  UShort 2  RpLink 개수
   const infoType = dv.getUint8(offset + 2);           // +2  Byte 1   정보인덱스 type
