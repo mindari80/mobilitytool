@@ -108,6 +108,8 @@ class RelayHandler(http.server.BaseHTTPRequestHandler):
             # 선택 파라미터
             alt        = float(qs['alt'][0])        if 'alt'        in qs else 0.0
             satellites = int(qs['satellites'][0])   if 'satellites' in qs else None
+            speed      = float(qs['speed'][0])      if 'speed'      in qs else None   # km/h
+            accuracy   = float(qs['accuracy'][0])   if 'accuracy'   in qs else None   # meters
 
             if not ADB:
                 self.send_json(500, {'ok': False, 'error': 'adb를 찾을 수 없습니다. PATH 또는 ANDROID_HOME을 확인하세요.'})
@@ -120,14 +122,17 @@ class RelayHandler(http.server.BaseHTTPRequestHandler):
             try:
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
                 ok = result.returncode == 0
-                self.send_json(200 if ok else 500, {
+                resp = {
                     'ok': ok,
                     'cmd': ' '.join(cmd),
                     'stdout': result.stdout.strip(),
                     'stderr': result.stderr.strip(),
                     'lat': lat, 'lon': lon, 'alt': alt,
-                    **(({'satellites': satellites}) if satellites is not None else {}),
-                })
+                }
+                if satellites is not None: resp['satellites'] = satellites
+                if speed      is not None: resp['speed']      = speed
+                if accuracy   is not None: resp['accuracy']   = accuracy
+                self.send_json(200 if ok else 500, resp)
             except subprocess.TimeoutExpired:
                 self.send_json(504, {'ok': False, 'error': 'adb 타임아웃 (에뮬레이터 연결 확인)'})
             except Exception as e:

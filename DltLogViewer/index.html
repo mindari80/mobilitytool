@@ -837,6 +837,131 @@
       border-color: #22c55e;
       color: #4ade80;
     }
+    #tab-mockgps {
+      top: 320px;
+      background: #2d1b4e;
+      border-color: #a855f7;
+      color: #c084fc;
+    }
+
+    /* ---- MockGPS panel ---- */
+    #mockgps-right-panel .mockgps-panel-body {
+      padding: 12px 16px;
+      overflow-y: auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .mg-section {
+      background: rgba(168,85,247,0.06);
+      border: 1px solid rgba(168,85,247,0.2);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+    .mg-section-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #c084fc;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .mg-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .mg-switch {
+      position: relative;
+      width: 52px;
+      height: 28px;
+      background: #334155;
+      border-radius: 14px;
+      cursor: pointer;
+      transition: background 0.2s;
+      flex-shrink: 0;
+    }
+    .mg-switch.on { background: #a855f7; }
+    .mg-switch::after {
+      content: '';
+      position: absolute;
+      top: 3px; left: 3px;
+      width: 22px; height: 22px;
+      background: #fff;
+      border-radius: 50%;
+      transition: left 0.2s;
+    }
+    .mg-switch.on::after { left: 27px; }
+    .mg-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 6px 0;
+      font-size: 11px;
+    }
+    .mg-row label { color: var(--muted); min-width: 56px; }
+    .mg-row input[type=range] { flex: 1; accent-color: #a855f7; }
+    .mg-row .mg-val {
+      min-width: 64px;
+      text-align: right;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .mg-btn {
+      padding: 7px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: rgba(15,23,42,0.6);
+      color: var(--text);
+      transition: all 0.15s;
+    }
+    .mg-btn:hover { border-color: #a855f7; }
+    .mg-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .mg-btn.primary { background: #a855f7; border-color: #a855f7; color: #fff; }
+    .mg-btn.primary:hover { background: #9333ea; }
+    .mg-btn.warn { background: #f59e0b; border-color: #f59e0b; color: #1e293b; }
+    .mg-btn.danger { background: #ef4444; border-color: #ef4444; color: #fff; }
+    .mg-btn-group { display: flex; gap: 6px; }
+    .mg-btn-group .mg-btn { flex: 1; }
+    .mg-adb-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      padding: 6px 8px;
+      background: rgba(15,23,42,0.6);
+      border-radius: 6px;
+    }
+    .mg-adb-dot {
+      width: 9px; height: 9px;
+      border-radius: 50%;
+      background: #64748b;
+      flex-shrink: 0;
+    }
+    .mg-adb-dot.connected { background: #4ade80; box-shadow: 0 0 6px #4ade80; }
+    .mg-adb-dot.error { background: #ef4444; }
+    .mg-progress-track {
+      height: 8px;
+      background: #334155;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 6px 0;
+    }
+    .mg-progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg,#a855f7,#c084fc);
+      transition: width 0.3s;
+    }
+    .mg-hint { font-size: 10px; color: var(--muted); line-height: 1.5; }
+    .mg-stat-line { font-size: 11px; color: var(--text); margin: 3px 0; }
+    .mg-stat-line b { color: #c084fc; }
 
     /* Panel headers (shared) */
     .right-panel-header {
@@ -1246,6 +1371,7 @@
 <!-- ======== Bookmark Tabs ======== -->
 <div id="tab-tvas" class="bookmark-tab" title="경로 요청">경로 요청</div>
 <div id="tab-dlt" class="bookmark-tab" title="DLT GPS Log">DLT GPS Log</div>
+<div id="tab-mockgps" class="bookmark-tab" title="Mock GPS">Mock GPS</div>
 
 <!-- ======== TVAS Right Panel ======== -->
 <div id="tvas-right-panel" class="right-slide-panel">
@@ -1441,6 +1567,84 @@
   </div>
 </div>
 
+<!-- ======== Mock GPS Right Panel ======== -->
+<div id="mockgps-right-panel" class="right-slide-panel">
+  <div class="right-panel-header" style="border-left:3px solid #a855f7">
+    <h2>🛰️ Mock GPS</h2>
+  </div>
+  <div class="mockgps-panel-body">
+
+    <!-- ON/OFF -->
+    <div class="mg-section">
+      <div class="mg-toggle">
+        <div>
+          <div style="font-size:12px;font-weight:700;color:var(--text)">Mock GPS 모드</div>
+          <div class="mg-hint" id="mg-mode-hint">OFF — 켜면 지도를 클릭해 주행 궤적을 그립니다.</div>
+        </div>
+        <div id="mg-switch" class="mg-switch"></div>
+      </div>
+    </div>
+
+    <!-- ADB 연결 상태 -->
+    <div class="mg-section">
+      <div class="mg-section-title">🔌 ADB 연결 상태</div>
+      <div class="mg-adb-status">
+        <span id="mg-adb-dot" class="mg-adb-dot"></span>
+        <span id="mg-adb-text">확인 중...</span>
+      </div>
+      <div class="mg-btn-group" style="margin-top:8px">
+        <button id="mg-adb-refresh" class="mg-btn">새로고침</button>
+      </div>
+      <div class="mg-hint" style="margin-top:6px">릴레이 서버: <code>python3 adb-relay.py</code> (포트 21234)</div>
+    </div>
+
+    <!-- 설정: 속도 / 정확도 -->
+    <div class="mg-section">
+      <div class="mg-section-title">⚙️ 전송 설정</div>
+      <div class="mg-row">
+        <label>속도</label>
+        <input type="range" id="mg-speed" min="5" max="200" step="5" value="40">
+        <span class="mg-val" id="mg-speed-val">40 km/h</span>
+      </div>
+      <div class="mg-row">
+        <label>정확도</label>
+        <input type="range" id="mg-accuracy" min="1" max="50" step="1" value="5">
+        <span class="mg-val" id="mg-accuracy-val">5 m</span>
+      </div>
+      <div class="mg-row">
+        <label>위성 수</label>
+        <input type="range" id="mg-satellites" min="0" max="20" step="1" value="10">
+        <span class="mg-val" id="mg-satellites-val">10개</span>
+      </div>
+      <div class="mg-hint">속도는 궤적 보간 간격(1초당 이동거리), 정확도·위성수는 에뮬레이터로 함께 전송됩니다.</div>
+    </div>
+
+    <!-- 주행 궤적 -->
+    <div class="mg-section">
+      <div class="mg-section-title">🗺️ 주행 궤적</div>
+      <div class="mg-stat-line">점 개수: <b id="mg-point-count">0</b> 개 · 총 거리: <b id="mg-total-dist">0</b> m</div>
+      <div class="mg-btn-group" style="margin-top:8px">
+        <button id="mg-clear-path" class="mg-btn danger">궤적 지우기</button>
+      </div>
+    </div>
+
+    <!-- 전송 제어 -->
+    <div class="mg-section">
+      <div class="mg-section-title">▶ Mock GPS 전송</div>
+      <div class="mg-btn-group">
+        <button id="mg-play" class="mg-btn primary" disabled>▶ 시작</button>
+        <button id="mg-pause" class="mg-btn warn" disabled>⏸ 일시정지</button>
+        <button id="mg-stop" class="mg-btn danger" disabled>■ 정지</button>
+      </div>
+      <div class="mg-progress-track"><div id="mg-progress-bar" class="mg-progress-bar"></div></div>
+      <div class="mg-stat-line">진행: <b id="mg-progress-text">0 / 0</b></div>
+      <div class="mg-stat-line">현재 좌표: <b id="mg-current-coord">-</b></div>
+      <div class="mg-stat-line" id="mg-send-status" style="color:var(--muted)"></div>
+    </div>
+
+  </div>
+</div>
+
 <!-- Error popup -->
 <div id="error-overlay">
   <div id="error-box">
@@ -1546,35 +1750,37 @@ import { wgs84ToSkCoord } from './js/coordinate.js';
 // ---- Right panel open/close ---- //
 const tvasPanel      = document.getElementById('tvas-right-panel');
 const dltPanel       = document.getElementById('dlt-right-panel');
+const mockgpsPanel   = document.getElementById('mockgps-right-panel');
 const tabTvas        = document.getElementById('tab-tvas');
 const tabDlt         = document.getElementById('tab-dlt');
+const tabMockgps     = document.getElementById('tab-mockgps');
 const tvasMenuBtn    = document.getElementById('tvas-menu-btn');
 
 const tvasClearRouteBtn = document.getElementById('tvas-clear-route-btn');
 
-// ---- Bookmark tab toggle logic ---- //
-function togglePanel(panel, tab, otherPanel, otherTab) {
-  const isOpen = panel.classList.contains('open');
-  // Close other panel first
-  otherPanel.classList.remove('open');
-  otherTab.classList.remove('active');
-  if (isOpen) {
-    panel.classList.remove('open');
-    tab.classList.remove('active');
-  } else {
-    panel.classList.add('open');
-    tab.classList.add('active');
-    if (panel === tvasPanel) applyWaypointsToBody();
-  }
+// ---- Bookmark tab toggle logic (3 panels) ---- //
+const _allPanels = [tvasPanel, dltPanel, mockgpsPanel];
+const _allTabs   = [tabTvas, tabDlt, tabMockgps];
+function closeAllPanels() {
+  _allPanels.forEach(p => p.classList.remove('open'));
+  _allTabs.forEach(t => t.classList.remove('active'));
 }
-tabTvas.addEventListener('click', () => togglePanel(tvasPanel, tabTvas, dltPanel, tabDlt));
-tabDlt.addEventListener('click', () => togglePanel(dltPanel, tabDlt, tvasPanel, tabTvas));
+function openPanel(panel, tab) {
+  closeAllPanels();
+  panel.classList.add('open');
+  tab.classList.add('active');
+  if (panel === tvasPanel) applyWaypointsToBody();
+  if (panel === mockgpsPanel) refreshAdbStatus();
+}
+function togglePanelTo(panel, tab) {
+  if (panel.classList.contains('open')) closeAllPanels();
+  else openPanel(panel, tab);
+}
+tabTvas.addEventListener('click', () => togglePanelTo(tvasPanel, tabTvas));
+tabDlt.addEventListener('click', () => togglePanelTo(dltPanel, tabDlt));
+tabMockgps.addEventListener('click', () => togglePanelTo(mockgpsPanel, tabMockgps));
 // Sidebar button also opens TVAS panel
-tvasMenuBtn.addEventListener('click', () => {
-  dltPanel.classList.remove('open'); tabDlt.classList.remove('active');
-  applyWaypointsToBody();
-  tvasPanel.classList.add('open'); tabTvas.classList.add('active');
-});
+tvasMenuBtn.addEventListener('click', () => openPanel(tvasPanel, tabTvas));
 
 // ---- Clear ALL route data from map ---- //
 tvasClearRouteBtn.addEventListener('click', () => {
@@ -1598,11 +1804,293 @@ tvasClearRouteBtn.addEventListener('click', () => {
   setStatus('');
 });
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') {
-    if (tvasPanel.classList.contains('open')) { tvasPanel.classList.remove('open'); tabTvas.classList.remove('active'); }
-    if (dltPanel.classList.contains('open')) { dltPanel.classList.remove('open'); tabDlt.classList.remove('active'); }
+  if (e.key === 'Escape') closeAllPanels();
+});
+
+// ============================================================
+// ======================= Mock GPS ==========================
+// ============================================================
+const MG_RELAY = 'http://localhost:21234';
+const mgSwitch       = document.getElementById('mg-switch');
+const mgModeHint     = document.getElementById('mg-mode-hint');
+const mgAdbDot       = document.getElementById('mg-adb-dot');
+const mgAdbText      = document.getElementById('mg-adb-text');
+const mgAdbRefresh   = document.getElementById('mg-adb-refresh');
+const mgSpeed        = document.getElementById('mg-speed');
+const mgSpeedVal     = document.getElementById('mg-speed-val');
+const mgAccuracy     = document.getElementById('mg-accuracy');
+const mgAccuracyVal  = document.getElementById('mg-accuracy-val');
+const mgSatellites   = document.getElementById('mg-satellites');
+const mgSatellitesVal= document.getElementById('mg-satellites-val');
+const mgPointCount   = document.getElementById('mg-point-count');
+const mgTotalDist    = document.getElementById('mg-total-dist');
+const mgClearPath    = document.getElementById('mg-clear-path');
+const mgPlay         = document.getElementById('mg-play');
+const mgPause        = document.getElementById('mg-pause');
+const mgStop         = document.getElementById('mg-stop');
+const mgProgressBar  = document.getElementById('mg-progress-bar');
+const mgProgressText = document.getElementById('mg-progress-text');
+const mgCurrentCoord = document.getElementById('mg-current-coord');
+const mgSendStatus   = document.getElementById('mg-send-status');
+
+let mgEnabled = false;
+let mgDrawPoints = [];          // [{lat, lng}, ...] 사용자가 찍은 궤적 점
+let mgDrawPolyline = null;      // L.polyline
+let mgDrawMarkers = [];         // 각 점의 작은 마커
+let mgPlaybackCoords = [];      // 보간된 좌표 배열
+let mgPlaybackIdx = 0;
+let mgPlaybackTimer = null;
+let mgPlaybackState = 'idle';   // idle | playing | paused
+let mgCarMarker = null;
+
+// ---- haversine 거리 (m) ---- //
+function mgHaversineM(a, b) {
+  const R = 6371000;
+  const dLat = (b.lat - a.lat) * Math.PI / 180;
+  const dLng = (b.lng - a.lng) * Math.PI / 180;
+  const s = Math.sin(dLat/2)**2 +
+            Math.cos(a.lat*Math.PI/180) * Math.cos(b.lat*Math.PI/180) * Math.sin(dLng/2)**2;
+  return R * 2 * Math.asin(Math.sqrt(s));
+}
+
+// ---- ADB 상태 새로고침 ---- //
+async function refreshAdbStatus() {
+  mgAdbDot.className = 'mg-adb-dot';
+  mgAdbText.textContent = '확인 중...';
+  try {
+    const res = await fetch(`${MG_RELAY}/devices`, { signal: AbortSignal.timeout(4000) });
+    const data = await res.json();
+    if (data.ok && data.devices && data.devices.length > 0) {
+      mgAdbDot.className = 'mg-adb-dot connected';
+      mgAdbText.textContent = `연결됨: ${data.devices.join(', ')}`;
+    } else {
+      mgAdbDot.className = 'mg-adb-dot error';
+      mgAdbText.textContent = data.error || '연결된 에뮬레이터 없음';
+    }
+  } catch (e) {
+    mgAdbDot.className = 'mg-adb-dot error';
+    mgAdbText.textContent = '릴레이 서버 응답 없음 (adb-relay.py 실행 필요)';
+  }
+}
+mgAdbRefresh.addEventListener('click', refreshAdbStatus);
+
+// ---- 슬라이더 값 표시 ---- //
+mgSpeed.addEventListener('input', () => { mgSpeedVal.textContent = `${mgSpeed.value} km/h`; });
+mgAccuracy.addEventListener('input', () => { mgAccuracyVal.textContent = `${mgAccuracy.value} m`; });
+mgSatellites.addEventListener('input', () => { mgSatellitesVal.textContent = `${mgSatellites.value}개`; });
+
+// ---- 궤적 통계 갱신 ---- //
+function mgUpdateStats() {
+  mgPointCount.textContent = mgDrawPoints.length;
+  let dist = 0;
+  for (let i = 0; i < mgDrawPoints.length - 1; i++) {
+    dist += mgHaversineM(mgDrawPoints[i], mgDrawPoints[i+1]);
+  }
+  mgTotalDist.textContent = Math.round(dist);
+  // 시작 버튼 활성화 조건: 점 2개 이상 + 재생중 아님
+  mgPlay.disabled = !(mgDrawPoints.length >= 2 && mgPlaybackState === 'idle');
+}
+
+// ---- 지도 클릭 → 궤적 점 추가 ---- //
+function mgOnMapClick(e) {
+  if (!mgEnabled || mgPlaybackState !== 'idle') return;
+  const map = getMap();
+  if (!map) return;
+  const latlng = e.latlng;
+  mgDrawPoints.push({ lat: latlng.lat, lng: latlng.lng });
+  // 폴리라인
+  if (!mgDrawPolyline) {
+    mgDrawPolyline = L.polyline([latlng], { color: '#a855f7', weight: 4, dashArray: '8,5', opacity: 0.9 }).addTo(map);
+  } else {
+    mgDrawPolyline.addLatLng(latlng);
+  }
+  // 점 마커
+  const m = L.circleMarker(latlng, {
+    radius: 5, color: '#fff', weight: 2, fillColor: '#a855f7', fillOpacity: 1,
+  }).addTo(map);
+  mgDrawMarkers.push(m);
+  mgUpdateStats();
+}
+
+// ---- 궤적 지우기 ---- //
+function mgClearTrajectory() {
+  const map = getMap();
+  if (mgDrawPolyline) { if (map) map.removeLayer(mgDrawPolyline); mgDrawPolyline = null; }
+  mgDrawMarkers.forEach(m => { if (map) map.removeLayer(m); });
+  mgDrawMarkers = [];
+  mgDrawPoints = [];
+  mgUpdateStats();
+}
+mgClearPath.addEventListener('click', () => {
+  if (mgPlaybackState !== 'idle') mgStopPlayback();
+  mgClearTrajectory();
+});
+
+// ---- ON/OFF 토글 ---- //
+mgSwitch.addEventListener('click', () => {
+  mgEnabled = !mgEnabled;
+  mgSwitch.classList.toggle('on', mgEnabled);
+  const map = getMap();
+  if (mgEnabled) {
+    mgModeHint.textContent = 'ON — 지도를 클릭해 주행 궤적을 추가하세요.';
+    if (map) {
+      map.on('click', mgOnMapClick);
+      map.getContainer().style.cursor = 'crosshair';
+    }
+  } else {
+    mgModeHint.textContent = 'OFF — 켜면 지도를 클릭해 주행 궤적을 그립니다.';
+    if (map) {
+      map.off('click', mgOnMapClick);
+      map.getContainer().style.cursor = '';
+    }
+    if (mgPlaybackState !== 'idle') mgStopPlayback();
   }
 });
+
+// ---- 속도 기반 좌표 보간 (1초 간격) ---- //
+function mgInterpolatePath(points, speedKmh) {
+  const stepM = Math.max(1, speedKmh * 1000 / 3600); // m/s = 1초당 이동거리
+  const coords = [];
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = points[i], b = points[i+1];
+    const dist = mgHaversineM(a, b);
+    const steps = Math.max(1, Math.round(dist / stepM));
+    for (let s = 0; s < steps; s++) {
+      const t = s / steps;
+      coords.push({
+        lat: a.lat + (b.lat - a.lat) * t,
+        lng: a.lng + (b.lng - a.lng) * t,
+      });
+    }
+  }
+  coords.push(points[points.length - 1]);
+  return coords;
+}
+
+// ---- Mock GPS 1좌표 전송 ---- //
+async function mgSendCoord(lat, lng) {
+  const accuracy   = Number(mgAccuracy.value);
+  const satellites = Number(mgSatellites.value);
+  const speed      = Number(mgSpeed.value);
+  const url = `${MG_RELAY}/mock-gps?lat=${lat}&lon=${lng}`
+            + `&accuracy=${accuracy}&satellites=${satellites}&speed=${speed}`;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
+    const data = await res.json();
+    if (data.ok) {
+      mgSendStatus.style.color = '#4ade80';
+      mgSendStatus.textContent = `전송 OK (${lat.toFixed(5)}, ${lng.toFixed(5)})`;
+    } else {
+      mgSendStatus.style.color = '#f87171';
+      mgSendStatus.textContent = `전송 실패: ${data.error || data.stderr || 'unknown'}`;
+    }
+  } catch (e) {
+    mgSendStatus.style.color = '#f87171';
+    mgSendStatus.textContent = '릴레이 서버 응답 없음';
+  }
+}
+
+// ---- 재생 UI 갱신 ---- //
+function mgUpdatePlaybackUI() {
+  const total = mgPlaybackCoords.length;
+  const idx = mgPlaybackIdx;
+  mgProgressText.textContent = `${idx} / ${total}`;
+  mgProgressBar.style.width = total ? `${(idx/total)*100}%` : '0%';
+  mgPlay.disabled  = mgPlaybackState === 'playing' || (mgPlaybackState === 'idle' && mgDrawPoints.length < 2);
+  mgPause.disabled = mgPlaybackState !== 'playing';
+  mgStop.disabled  = mgPlaybackState === 'idle';
+  mgPlay.textContent = mgPlaybackState === 'paused' ? '▶ 계속' : '▶ 시작';
+}
+
+// ---- 재생 틱 ---- //
+function mgPlaybackTick() {
+  if (mgPlaybackIdx >= mgPlaybackCoords.length) {
+    mgStopPlayback(true);
+    mgSendStatus.style.color = '#c084fc';
+    mgSendStatus.textContent = '✓ 궤적 전송 완료';
+    return;
+  }
+  const { lat, lng } = mgPlaybackCoords[mgPlaybackIdx++];
+  const map = getMap();
+  if (map) {
+    if (!mgCarMarker) {
+      mgCarMarker = L.marker([lat, lng], {
+        icon: L.divIcon({
+          className: '',
+          html: '<div style="width:26px;height:26px;line-height:24px;text-align:center;background:#a855f7;border-radius:50%;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.5);font-size:14px">🚗</div>',
+          iconSize: [26, 26], iconAnchor: [13, 13],
+        }),
+      }).addTo(map);
+    } else {
+      mgCarMarker.setLatLng([lat, lng]);
+    }
+  }
+  mgCurrentCoord.textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+  mgUpdatePlaybackUI();
+  mgSendCoord(lat, lng);
+}
+
+// ---- 시작 / 일시정지 / 정지 ---- //
+function mgStartPlayback() {
+  if (mgPlaybackState === 'paused') {
+    mgPlaybackState = 'playing';
+    mgPlaybackTimer = setInterval(mgPlaybackTick, 1000);
+    mgUpdatePlaybackUI();
+    return;
+  }
+  if (mgDrawPoints.length < 2) return;
+  mgPlaybackCoords = mgInterpolatePath(mgDrawPoints, Number(mgSpeed.value));
+  mgPlaybackIdx = 0;
+  mgPlaybackState = 'playing';
+  mgSendStatus.style.color = 'var(--muted)';
+  mgSendStatus.textContent = `${mgPlaybackCoords.length}개 좌표 전송 시작...`;
+  mgPlaybackTick(); // 즉시 첫 좌표 전송
+  mgPlaybackTimer = setInterval(mgPlaybackTick, 1000);
+  mgUpdatePlaybackUI();
+}
+function mgPausePlayback() {
+  if (mgPlaybackState !== 'playing') return;
+  clearInterval(mgPlaybackTimer); mgPlaybackTimer = null;
+  mgPlaybackState = 'paused';
+  mgSendStatus.style.color = '#f59e0b';
+  mgSendStatus.textContent = '⏸ 일시정지됨';
+  mgUpdatePlaybackUI();
+}
+function mgStopPlayback(finished) {
+  if (mgPlaybackTimer) { clearInterval(mgPlaybackTimer); mgPlaybackTimer = null; }
+  mgPlaybackState = 'idle';
+  mgPlaybackIdx = 0;
+  mgPlaybackCoords = [];
+  const map = getMap();
+  if (mgCarMarker && map) { map.removeLayer(mgCarMarker); mgCarMarker = null; }
+  if (!finished) {
+    mgSendStatus.style.color = 'var(--muted)';
+    mgSendStatus.textContent = '■ 정지됨';
+    mgProgressBar.style.width = '0%';
+    mgProgressText.textContent = '0 / 0';
+    mgCurrentCoord.textContent = '-';
+  }
+  mgUpdatePlaybackUI();
+  mgUpdateStats();
+}
+mgPlay.addEventListener('click', mgStartPlayback);
+mgPause.addEventListener('click', mgPausePlayback);
+mgStop.addEventListener('click', () => mgStopPlayback(false));
+
+// 맵이 재생성되면 (DLT 분석 후 등) 클릭 핸들러 재부착
+window.addEventListener('map-init', () => {
+  if (mgEnabled) {
+    const map = getMap();
+    if (map) {
+      map.on('click', mgOnMapClick);
+      map.getContainer().style.cursor = 'crosshair';
+    }
+  }
+});
+
+// 초기 상태
+mgUpdateStats();
+mgUpdatePlaybackUI();
 
 // ---- DOM refs ---- //
 const tvasUrl        = document.getElementById('tvas-url');
