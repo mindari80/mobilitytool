@@ -504,8 +504,10 @@ export function renderTvasRoute(map, tvasResult, resolvedCoords, routeIndex = 0)
     }
   }
 
-  // Add all layers to map
-  Object.values(tvasLayers).forEach(lg => { if (lg) lg.addTo(map); });
+  // Add all layers to map (evChargerNearRoute defaults to OFF)
+  Object.entries(tvasLayers).forEach(([k, lg]) => {
+    if (lg && k !== 'evChargerNearRoute') lg.addTo(map);
+  });
 
   return { layers: tvasLayers, summary: buildSummary(header, resolvedCoords, tvasResult) };
 }

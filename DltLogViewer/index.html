@@ -1304,7 +1304,7 @@
       <span class="tvas-ltog on" data-tl="restArea">휴게소</span>
       <span class="tvas-ltog on" data-tl="lane">차로</span>
       <span class="tvas-ltog on" data-tl="evChargerOnRoute">충전소(경로상)</span>
-      <span class="tvas-ltog on" data-tl="evChargerNearRoute">충전소(경로주변)</span>
+      <span class="tvas-ltog" data-tl="evChargerNearRoute">충전소(경로주변)</span>
       <span class="tvas-ltog on" data-tl="direction">방면</span>
       <span class="tvas-ltog on" data-tl="roadName">도로명</span>
       <span class="tvas-ltog on" data-tl="waypoint">경유지</span>
@@ -2193,8 +2193,11 @@ tvasSendBtn.addEventListener('click', async () => {
 
     // Show layer toggles
     tvasLayerToggles.style.display = 'flex';
-    tvasLayerToggles.querySelectorAll('.tvas-ltog[data-tl]').forEach(b => b.classList.add('on'));
-    tvasLtogAll.classList.add('all-on');
+    tvasLayerToggles.querySelectorAll('.tvas-ltog[data-tl]').forEach(b => {
+      if (b.dataset.tl === 'evChargerNearRoute') b.classList.remove('on');
+      else b.classList.add('on');
+    });
+    tvasLtogAll.classList.remove('all-on');
 
     // Summary + section details
     tvasSummary.innerHTML = buildSummaryHtml(summary, elapsed, tvasResult, coords, respInfo);
