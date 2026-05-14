@@ -520,6 +520,7 @@ export function clearTvasRoute(map) {
     tvasLayers[key] = null;
   });
   selectedRpLink = null;
+  selectedTrafficInfo = null;
 }
 
 export function getTvasLayers() { return tvasLayers; }
@@ -1349,17 +1350,39 @@ function renderCongestion(lg, coords, items) {
   }
 }
 
+/**
+ * LT2 선 스타일 — 선택 시 흰색·굵게·실선으로 강조.
+ * Pure: (isSelected, congestionColor) → Leaflet path options.
+ */
+export function trafficInfoStyle(isSelected, color) {
+  return isSelected
+    ? { color: '#ffffff', weight: 6, opacity: 1 }
+    : { color, weight: 2, opacity: 0.85, dashArray: '2,6' };
+}
+
+// 현재 선택된 LT2 폴리라인 (한 번에 하나만 강조)
+let selectedTrafficInfo = null;
+
 function renderTrafficInfo(lg, coords, items) {
-  // LT2: TSD링크교통정보 — 혼잡도별 색, 경로보다 얇게
+  // LT2: TSD링크교통정보 — 혼잡도별 색, 경로보다 얇게, 클릭 시 강조
+  selectedTrafficInfo = null;
   const segs = buildRangeSegments(coords, items);
   for (const { latlngs, item } of segs) {
     const congChar = String.fromCharCode(item.congestion);
     const color = CONGESTION_COLORS[congChar] || CONGESTION_FALLBACK_COLOR;
     const congName = CONGESTION_NAMES[congChar] || `코드 ${item.congestion}`;
     const popup = `<b>교통정보(LT2)</b><br>속도: ${item.speed}km/h<br>혼잡도: ${congName}<br>VX: ${item.startVxIdx}~${item.endVxIdx}`;
-    L.polyline(latlngs, { color, weight: 2, opacity: 0.85, dashArray: '2,6' })
-      .bindPopup(popup, { maxWidth: 260 })
-      .addTo(lg);
+    const pl = L.polyline(latlngs, trafficInfoStyle(false, color))
+      .bindPopup(popup, { maxWidth: 260 });
+    pl.on('click', () => {
+      if (selectedTrafficInfo && selectedTrafficInfo.pl !== pl) {
+        selectedTrafficInfo.pl.setStyle(trafficInfoStyle(false, selectedTrafficInfo.color));
+      }
+      selectedTrafficInfo = { pl, color };
+      pl.setStyle(trafficInfoStyle(true, color));
+      pl.bringToFront();
+    });
+    pl.addTo(lg);
   }
 }
 

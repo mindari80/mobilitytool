@@ -11,6 +11,7 @@ import {
   evChargerLayerKey,
   buildRpLinkPopup,
   rpLinkStyle,
+  trafficInfoStyle,
 } from '../DltLogViewer/js/tvas-renderer.js';
 
 // ---- buildRouteArrowSpecs ------------------------------------------------- //
@@ -589,4 +590,25 @@ test('buildRpLinkPopup notes Super Cruise only when flagged', () => {
   });
   assert.match(on, /Super Cruise/i);
   assert.doesNotMatch(off, /Super Cruise/i);
+});
+
+// ---- trafficInfoStyle ------------------------------------------------------- //
+//
+// LT2 선택 강조: 기본 혼잡도 색 얇은 대시선 → 선택 흰색 굵은 실선.
+
+test('trafficInfoStyle default keeps congestion color and is thin dashed', () => {
+  const color = '#ef4444';
+  const s = trafficInfoStyle(false, color);
+  assert.equal(s.color, color);
+  assert.equal(s.weight, 2);
+  assert.ok(s.dashArray, 'default should have dashArray');
+});
+
+test('trafficInfoStyle selected is thicker, more opaque, and has no dashArray', () => {
+  const color = '#22c55e';
+  const def = trafficInfoStyle(false, color);
+  const sel = trafficInfoStyle(true, color);
+  assert.ok(sel.weight > def.weight, 'selected must be thicker');
+  assert.ok(sel.opacity >= def.opacity, 'selected must be at least as opaque');
+  assert.ok(!sel.dashArray, 'selected should not have dashArray');
 });
