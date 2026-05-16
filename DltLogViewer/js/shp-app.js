@@ -569,6 +569,10 @@ async function analyzeGps(dltFiles, displayNames) {
 // ---- Results display ----------------------------------------------------- //
 
 function displayResults({ locationLogs, mmLogs, routeRequests, ttsLogs }) {
+  // MockGPS 패널 등에서 접근할 수 있도록 전역 노출
+  window.__dltAnalysis = { locationLogs, mmLogs, routeRequests, ttsLogs };
+  window.dispatchEvent(new CustomEvent('dlt-analysis-complete', { detail: window.__dltAnalysis }));
+
   const gpsCount     = locationLogs.filter(p => p.sourceType === 'gps').length;
   const drGpsCount   = locationLogs.filter(p => p.sourceType === 'dr_gps').length;
   const mmGpsCount   = mmLogs.filter(p => p.sourceType === 'mm_gps').length;

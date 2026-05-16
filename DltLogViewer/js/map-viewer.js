@@ -115,8 +115,21 @@ function field(label, value) {
 }
 
 function routePopupHtml(rr) {
-  const displayPayload = rr.payload ? preparePayloadForDisplayExport(rr.payload) : null;
-  const payloadPretty = displayPayload ? JSON.stringify(displayPayload, null, 2) : 'N/A';
+  // 전체 JSON 파싱 성공 → 정리된 형태로 표시, 실패 → 원본 그대로 + 경고 배지
+  let payloadPretty, parseWarning = '';
+  if (rr.payloadFull) {
+    const cleaned = preparePayloadForDisplayExport(rr.payloadFull);
+    payloadPretty = JSON.stringify(cleaned, null, 2);
+  } else if (rr.payloadParseError && rr.rawReqBuffer) {
+    payloadPretty = rr.rawReqBuffer;
+    parseWarning = `<div style="background:#fef3c7;color:#92400e;padding:6px 8px;border-radius:6px;font-size:11px;margin:4px 0;border:1px solid #f59e0b">
+      <b>⚠ JSON 파싱 실패</b> — 원본 그대로 표시<br>
+      <span style="font-size:10px;color:#b45309">${esc(rr.payloadParseError)}</span>
+    </div>`;
+  } else {
+    const displayPayload = rr.payload ? preparePayloadForDisplayExport(rr.payload) : null;
+    payloadPretty = displayPayload ? JSON.stringify(displayPayload, null, 2) : 'N/A';
+  }
   const statusColor = rr.responseStatus === 'SUCCESS' ? '#5eead4' :
     rr.responseStatus === 'FAILED' ? '#f87171' : '#94a3b8';
   const respDetail = [
@@ -135,6 +148,10 @@ function routePopupHtml(rr) {
       ${field('Response', respDetail ? `${rr.responseStatus || 'UNKNOWN'} (${respDetail})` : rr.responseStatus || 'UNKNOWN')}
       ${field('Endpoint', rr.endpoint)}
       ${field('ReqTime', rr.reqTime)}
+      ${field('REQ Log Time', formatTimestamp(rr.reqTimestamp))}
+      ${field('GPS at REQ (WGS84)', rr.requestLat != null ? `${rr.requestLat.toFixed(6)}, ${rr.requestLon.toFixed(6)}` : null)}
+      ${field('GPS Source', rr.requestSourceType)}
+      ${field('GPS Log Time', formatTimestamp(rr.requestLocationTime))}
       ${field('Departure', rr.departName)}
       ${field('Departure SK', `${rr.departX}, ${rr.departY}`)}
       ${field('Departure WGS84', rr.departLat != null ? `${rr.departLat.toFixed(6)}, ${rr.departLon.toFixed(6)}` : null)}
@@ -165,7 +182,8 @@ function routePopupHtml(rr) {
       ${field('OSVersion', rr.osVersion)}
       ${field('ModelNo', rr.modelNo)}
       ${field('WaypointCount', rr.waypointCount)}
-      <details><summary>Request Payload</summary><pre>${esc(payloadPretty)}</pre></details>
+      ${parseWarning}
+      <details ${rr.payloadFull ? '' : 'open'}><summary>Request Payload</summary><pre>${esc(payloadPretty)}</pre></details>
     </div>`;
 }
 
@@ -270,26 +288,9 @@ export function initMap(containerId, center = [37.5665, 126.9780]) {
     clearRouteAnchors();
   });
 
-  // Long tap / right-click → coordinate popup with waypoint buttons
-  map.on('contextmenu', e => {
-    L.DomEvent.preventDefault(e.originalEvent);
-    const { lat, lng } = e.latlng;
-    const sk = wgs84ToSkCoord(lat, lng);
-    const content = document.createElement('div');
-    content.style.cssText = 'font-size:12px;line-height:1.8';
-    content.innerHTML = '<b>좌표 정보</b><br>' +
-      'WGS84: ' + lat.toFixed(6) + ', ' + lng.toFixed(6) + '<br>' +
-      'SK: ' + sk[0] + ', ' + sk[1] + '<br>' +
-      '<div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap">' +
-      '<button id="_wp_dep" style="flex:1;padding:5px;background:#22c55e;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">출발지</button>' +
-      '<button id="_wp_via" style="flex:1;padding:5px;background:#f59e0b;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">경유지</button>' +
-      '<button id="_wp_dst" style="flex:1;padding:5px;background:#ef4444;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">목적지</button>' +
-      '</div>';
-    const popup = L.popup({ maxWidth: 300 }).setLatLng(e.latlng).setContent(content).openOn(map);
-    content.querySelector('#_wp_dep').addEventListener('click', () => { setWaypoint('depart', lat, lng); map.closePopup(popup); });
-    content.querySelector('#_wp_via').addEventListener('click', () => { setWaypoint('via', lat, lng); map.closePopup(popup); });
-    content.querySelector('#_wp_dst').addEventListener('click', () => { setWaypoint('dest', lat, lng); map.closePopup(popup); });
-  });
+  // NOTE: contextmenu (우클릭 출발지/목적지 설정) 핸들러는 index.html 의 인라인 스크립트가
+  // setupMapContextMenu() 에서 단독으로 설정합니다. 여기서 중복 등록하면 DLT 분석으로
+  // 맵이 재생성될 때 두 핸들러가 같이 붙어 인라인 setWaypoint 가 무시되는 버그가 발생합니다.
 
   rulerLayer = L.layerGroup().addTo(map);
 
@@ -509,16 +510,77 @@ export function renderLogs(locationLogs, mmLogs, routeRequests, ttsLogs) {
     }
   }
 
-  // Route request markers
-  const routeIcon = divIcon(routeIconHtml, [30, 36], [15, 34], [0, -30]);
+  // Route request markers — 같은 좌표(rounded 6자리) 그룹화 + 갯수 배지
+  const routeGroups = new Map();   // key="lat_lon" → { lat, lon, items: [{rr, idx}] }
   sortedRoute.forEach((rr, idx) => {
     const lat = rr.requestLat, lon = rr.requestLon;
     if (lat == null || lon == null) return;
-    const marker = L.marker([lat, lon], { icon: routeIcon });
-    marker.bindPopup(`<b>Route #${idx + 1}</b>${routePopupHtml(rr)}`, { maxWidth: 540 });
-    marker.on('click', () => showRouteAnchors(rr));
-    marker.addTo(layers.routeRequest);
+    const key = `${lat.toFixed(6)}_${lon.toFixed(6)}`;
+    if (!routeGroups.has(key)) routeGroups.set(key, { lat, lon, items: [] });
+    routeGroups.get(key).items.push({ rr, idx });
   });
+
+  for (const { lat, lon, items } of routeGroups.values()) {
+    const count = items.length;
+    // count > 1 이면 아이콘 우상단에 빨강 배지 표시
+    const iconHtml = count > 1
+      ? `<div style="position:relative;width:30px;height:36px">${routeIconHtml}
+           <div style="position:absolute;top:-4px;right:-6px;min-width:18px;height:18px;line-height:18px;padding:0 4px;background:#ef4444;color:#fff;border:2px solid #fff;border-radius:9px;font-size:10px;font-weight:800;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.5)">${count}</div>
+         </div>`
+      : routeIconHtml;
+    const iconSize = count > 1 ? [36, 40] : [30, 36];
+    const iconAnchor = count > 1 ? [18, 38] : [15, 34];
+    const marker = L.marker([lat, lon], { icon: divIcon(iconHtml, iconSize, iconAnchor, [0, -34]) });
+
+    let popupHtml;
+    if (count === 1) {
+      const { rr, idx } = items[0];
+      popupHtml = `<b>Route #${idx + 1}</b>${routePopupHtml(rr)}`;
+      marker.on('click', () => showRouteAnchors(rr));
+    } else {
+      // 다중: 탭으로 전환 가능한 팝업
+      const tabId = `rgrp_${lat.toFixed(4)}_${lon.toFixed(4)}`.replace(/[^a-z0-9_]/gi, '_');
+      const tabStyle = (active, sc) =>
+        `padding:3px 8px;border-radius:6px 6px 0 0;cursor:pointer;font-size:11px;font-weight:600;` +
+        `border:1px solid #cbd5e1;border-bottom:${active ? '2px solid '+sc : 'none'};` +
+        `background:#fff;color:${active ? sc : '#64748b'};margin-bottom:${active ? '-1px' : '0'}`;
+      const tabs = items.map(({ rr, idx }, i) => {
+        const status = rr.responseStatus || 'UNKNOWN';
+        const sc = status === 'SUCCESS' ? '#0f766e' : status === 'FAILED' ? '#dc2626' : '#64748b';
+        return `<span class="${tabId}-tab" data-i="${i}" data-sc="${sc}" style="${tabStyle(i===0, sc)}">${esc(rr.rpLabel || ('#'+(idx+1)))}</span>`;
+      }).join('');
+      const panels = items.map(({ rr, idx }, i) =>
+        `<div class="${tabId}-panel" data-i="${i}" style="display:${i===0?'block':'none'};background:#fff;color:#1e293b">
+           <b style="color:#1e293b">Route #${idx + 1}</b>${routePopupHtml(rr)}
+         </div>`).join('');
+      popupHtml = `
+        <div style="background:#fff;color:#1e293b">
+          <div style="font-size:12px;color:#1e293b;margin-bottom:4px"><b>📍 이 위치에 ${count}개 경로요청</b></div>
+          <div style="display:flex;gap:2px;flex-wrap:wrap;background:#fff">${tabs}</div>
+          <div style="border:1px solid #cbd5e1;padding:8px;background:#fff;border-radius:0 6px 6px 6px">${panels}</div>
+        </div>`;
+      marker.on('click', () => showRouteAnchors(items[0].rr));
+      // 탭 클릭 처리
+      marker.on('popupopen', e => {
+        const el = e.popup.getElement();
+        if (!el) return;
+        const tabEls = el.querySelectorAll(`.${tabId}-tab`);
+        const panelEls = el.querySelectorAll(`.${tabId}-panel`);
+        tabEls.forEach(t => t.addEventListener('click', () => {
+          const i = t.dataset.i;
+          tabEls.forEach(tt => {
+            const ttSc = tt.dataset.sc;
+            tt.setAttribute('style', tabStyle(tt.dataset.i === i, ttSc));
+          });
+          panelEls.forEach(p => p.style.display = p.dataset.i === i ? 'block' : 'none');
+          // 탭 변경 시 경로 앵커도 업데이트
+          showRouteAnchors(items[Number(i)].rr);
+        }));
+      });
+    }
+    marker.bindPopup(popupHtml, { maxWidth: 560, minWidth: 320 });
+    marker.addTo(layers.routeRequest);
+  }
 
   // TTS markers
   const ttsIcon = divIcon(ttsIconHtml, [26, 26], [13, 13], [0, -12]);
