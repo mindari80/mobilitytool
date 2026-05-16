@@ -1602,17 +1602,6 @@
   </div>
   <div class="mockgps-panel-body">
 
-    <!-- ON/OFF -->
-    <div class="mg-section">
-      <div class="mg-toggle">
-        <div>
-          <div style="font-size:12px;font-weight:700;color:var(--text)">Mock GPS 모드</div>
-          <div class="mg-hint" id="mg-mode-hint">OFF — 켜면 지도를 드래그해 주행 궤적을 그립니다.</div>
-        </div>
-        <div id="mg-switch" class="mg-switch"></div>
-      </div>
-    </div>
-
     <!-- ADB 연결 상태 -->
     <div class="mg-section">
       <div class="mg-section-title">🔌 ADB 연결 상태</div>
@@ -1623,6 +1612,17 @@
       <div class="mg-btn-group" style="margin-top:8px">
         <button id="mg-adb-refresh" class="mg-btn">새로고침</button>
         <button id="mg-adb-setup" class="mg-btn primary">ADB 설정</button>
+      </div>
+      <!-- 앱 설치/실행 상태 박스 (ADB 연결 시에만 노출) -->
+      <div id="mg-app-status-box" style="display:none;margin-top:8px;padding:8px 10px;background:rgba(168,85,247,0.06);border:1px solid rgba(168,85,247,0.2);border-radius:6px">
+        <div style="display:flex;align-items:center;gap:6px;font-size:11px">
+          <span id="mg-app-dot" class="mg-adb-dot"></span>
+          <span id="mg-app-text" style="flex:1">앱 상태 확인 중...</span>
+        </div>
+        <div class="mg-btn-group" style="margin-top:6px">
+          <button id="mg-app-install" class="mg-btn primary" style="display:none">📥 자동 설치</button>
+          <button id="mg-app-launch"  class="mg-btn" style="display:none">▶ 앱 실행</button>
+        </div>
       </div>
       <div id="mg-relay-cmd-box" style="display:none;margin-top:8px;padding:8px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);border-radius:6px">
         <div style="font-size:11px;color:#f87171;font-weight:700;margin-bottom:4px">⚠️ 릴레이 서버가 실행되지 않았습니다</div>
@@ -1687,8 +1687,14 @@
 
       <!-- 드로잉 모드 -->
       <div class="mg-mode-content" data-mode="draw">
-        <div class="mg-hint" style="margin:8px 0 6px">지도를 마우스로 드래그하여 주행 궤적을 그리세요. 속도 슬라이더에 따라 1초 간격으로 보간 전송됩니다.</div>
-        <div class="mg-stat-line">점 개수: <b id="mg-point-count">0</b> 개 · 총 거리: <b id="mg-total-dist">0</b> m</div>
+        <div class="mg-toggle" style="margin-top:8px;padding:6px 0;border-bottom:1px solid rgba(168,85,247,0.15)">
+          <div>
+            <div style="font-size:12px;font-weight:700;color:var(--text)">지도 드로잉 모드</div>
+            <div class="mg-hint" id="mg-mode-hint">OFF — 켜면 지도를 드래그해 주행 궤적을 그립니다.</div>
+          </div>
+          <div id="mg-switch" class="mg-switch"></div>
+        </div>
+        <div class="mg-stat-line" style="margin-top:8px">점 개수: <b id="mg-point-count">0</b> 개 · 총 거리: <b id="mg-total-dist">0</b> m</div>
         <div class="mg-btn-group" style="margin-top:8px">
           <button id="mg-clear-path" class="mg-btn danger">궤적 지우기</button>
         </div>
@@ -1911,6 +1917,11 @@ const mgAdbDot       = document.getElementById('mg-adb-dot');
 const mgAdbText      = document.getElementById('mg-adb-text');
 const mgAdbRefresh   = document.getElementById('mg-adb-refresh');
 const mgAdbSetup     = document.getElementById('mg-adb-setup');
+const mgAppBox       = document.getElementById('mg-app-status-box');
+const mgAppDot       = document.getElementById('mg-app-dot');
+const mgAppText      = document.getElementById('mg-app-text');
+const mgAppInstall   = document.getElementById('mg-app-install');
+const mgAppLaunch    = document.getElementById('mg-app-launch');
 const mgSetupHint    = document.getElementById('mg-setup-hint');
 const mgSpeed        = document.getElementById('mg-speed');
 const mgSpeedVal     = document.getElementById('mg-speed-val');
@@ -1998,24 +2009,108 @@ mgCopyCmdBtn.addEventListener('click', async () => {
 async function refreshAdbStatus() {
   mgAdbDot.className = 'mg-adb-dot';
   mgAdbText.textContent = '확인 중...';
+  mgAppBox.style.display = 'none';
+  let adbConnected = false;
   try {
     const res = await fetch(`${MG_RELAY}/devices`, { signal: AbortSignal.timeout(4000) });
     const data = await res.json();
     if (data.ok && data.devices && data.devices.length > 0) {
       mgAdbDot.className = 'mg-adb-dot connected';
       mgAdbText.textContent = `연결됨: ${data.devices.join(', ')}`;
+      adbConnected = true;
     } else {
       mgAdbDot.className = 'mg-adb-dot error';
       mgAdbText.textContent = data.error || '연결된 에뮬레이터 없음';
     }
-    mgRelayCmdBox.style.display = 'none';   // 릴레이 응답함 → 명령 박스 숨김
+    mgRelayCmdBox.style.display = 'none';
   } catch (e) {
     mgAdbDot.className = 'mg-adb-dot error';
     mgAdbText.textContent = '릴레이 서버 응답 없음 (adb-relay.py 실행 필요)';
-    mgRelayCmdBox.style.display = 'block';  // 명령 복사 박스 노출
+    mgRelayCmdBox.style.display = 'block';
+  }
+  // ADB 연결 시에만 앱 상태도 체크
+  if (adbConnected) {
+    mgAppBox.style.display = 'block';
+    await refreshAppStatus();
   }
 }
 mgAdbRefresh.addEventListener('click', refreshAdbStatus);
+
+// ---- MnsMockGps 앱 상태 ---- //
+function mgApkUrl() {
+  // 현재 페이지가 호스팅된 위치 기반으로 APK 절대 URL 계산
+  // 예: http://localhost:8080/DltLogViewer/  →  http://localhost:8080/DltLogViewer/assets/MnsMockGps.apk
+  return new URL('assets/MnsMockGps.apk', location.href).toString();
+}
+
+async function refreshAppStatus() {
+  mgAppDot.className = 'mg-adb-dot';
+  mgAppText.textContent = '앱 상태 확인 중...';
+  mgAppInstall.style.display = 'none';
+  mgAppLaunch.style.display = 'none';
+  try {
+    const res = await fetch(`${MG_RELAY}/app-status`, { signal: AbortSignal.timeout(4000) });
+    const data = await res.json();
+    if (!data.ok) {
+      mgAppDot.className = 'mg-adb-dot error';
+      mgAppText.textContent = data.error || '앱 상태 확인 실패';
+      return;
+    }
+    if (data.installed && data.serviceRunning) {
+      mgAppDot.className = 'mg-adb-dot connected';
+      mgAppText.innerHTML = '<b style="color:#4ade80">MnsMockGps 실행 중</b>';
+    } else if (data.installed) {
+      mgAppDot.className = 'mg-adb-dot';
+      mgAppDot.style.background = '#fbbf24';
+      mgAppText.innerHTML = '앱 설치됨 · 서비스 중지 상태';
+      mgAppLaunch.style.display = '';
+    } else {
+      mgAppDot.className = 'mg-adb-dot error';
+      mgAppText.innerHTML = '<b>앱 미설치</b> — 자동 설치할 수 있습니다';
+      mgAppInstall.style.display = '';
+    }
+  } catch (e) {
+    mgAppDot.className = 'mg-adb-dot error';
+    mgAppText.textContent = '앱 상태 조회 실패';
+  }
+}
+
+mgAppInstall.addEventListener('click', async () => {
+  mgAppInstall.disabled = true;
+  const orig = mgAppInstall.textContent;
+  mgAppInstall.textContent = '⏳ 다운로드 + 설치 중...';
+  mgAppText.textContent = `APK 다운로드 중 (${mgApkUrl()})...`;
+  try {
+    const url = `${MG_RELAY}/install-app?url=${encodeURIComponent(mgApkUrl())}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(120000) });
+    const data = await res.json();
+    if (data.ok) {
+      mgAppText.innerHTML = `<b style="color:#4ade80">설치 완료</b> (${Math.round((data.downloadedSize||0)/1024)}KB · adb forward·appops 자동 적용)`;
+      // 잠시 후 상태 다시 확인
+      setTimeout(refreshAppStatus, 1000);
+    } else {
+      mgAppText.innerHTML = `<span style="color:#f87171">설치 실패: ${data.error || 'unknown'}</span>`;
+    }
+  } catch (e) {
+    mgAppText.innerHTML = `<span style="color:#f87171">통신 실패: ${e.message}</span>`;
+  } finally {
+    mgAppInstall.disabled = false;
+    mgAppInstall.textContent = orig;
+  }
+});
+
+mgAppLaunch.addEventListener('click', async () => {
+  mgAppLaunch.disabled = true;
+  try {
+    await fetch(`${MG_RELAY}/launch-app`, { signal: AbortSignal.timeout(5000) });
+    mgAppText.textContent = '앱 실행됨 — 단말에서 "시작" 버튼을 눌러주세요';
+    setTimeout(refreshAppStatus, 1500);
+  } catch (e) {
+    mgAppText.innerHTML = `<span style="color:#f87171">실행 실패: ${e.message}</span>`;
+  } finally {
+    mgAppLaunch.disabled = false;
+  }
+});
 
 // ---- ADB 설정 (adb forward + 모의위치 앱 지정) ---- //
 mgAdbSetup.addEventListener('click', async () => {
@@ -2186,14 +2281,9 @@ function mgUpdateDrawHandlerState() {
 mgSwitch.addEventListener('click', () => {
   mgEnabled = !mgEnabled;
   mgSwitch.classList.toggle('on', mgEnabled);
-  if (mgEnabled) {
-    if (mgMode === 'draw') mgModeHint.textContent = 'ON — 지도를 드래그해 주행 궤적을 그리세요.';
-    else if (mgMode === 'tvas') mgModeHint.textContent = 'ON — TVAS 모드: 경로 불러오기 후 시작하세요.';
-    else if (mgMode === 'dlt')  mgModeHint.textContent = 'ON — DLT 모드: 로그 불러오기 후 시작하세요.';
-  } else {
-    mgModeHint.textContent = 'OFF — 켜면 모드별 궤적을 따라 Mock GPS를 전송합니다.';
-    if (mgPlaybackState !== 'idle') mgStopPlayback();
-  }
+  mgModeHint.textContent = mgEnabled
+    ? 'ON — 지도를 드래그해 주행 궤적을 그리세요.'
+    : 'OFF — 켜면 지도를 드래그해 주행 궤적을 그립니다.';
   mgUpdateDrawHandlerState();
 });
 
@@ -2206,15 +2296,9 @@ mgModeTabs.forEach(tab => {
     mgMode = tab.dataset.mode;
     mgModeTabs.forEach(t => t.classList.toggle('active', t === tab));
     mgModeContents.forEach(c => c.style.display = (c.dataset.mode === mgMode) ? '' : 'none');
-    // 모드 전환 시 이전 궤적 정리
+    // 모드 전환 시 이전 궤적 정리 + 드로잉 핸들러 상태 갱신
     mgClearTrajectory();
     mgUpdateDrawHandlerState();
-    // 토글 상태에 따라 힌트 갱신
-    if (mgEnabled) {
-      if (mgMode === 'draw')      mgModeHint.textContent = 'ON — 지도를 드래그해 주행 궤적을 그리세요.';
-      else if (mgMode === 'tvas') mgModeHint.textContent = 'ON — TVAS 모드: 경로 불러오기 후 시작하세요.';
-      else if (mgMode === 'dlt')  mgModeHint.textContent = 'ON — DLT 모드: 로그 불러오기 후 시작하세요.';
-    }
   });
 });
 

@@ -19,6 +19,10 @@ ADB Mock GPS Relay Server  (MnsMockGps 연동판)
   GET /            헬스 체크
   GET /devices     연결된 ADB 디바이스 목록
   GET /setup       adb forward + 모의위치 앱 권한(appops) 자동 설정
+  GET /app-status  MnsMockGps 앱 설치 여부 + 실행 여부 확인
+  GET /install-app APK 다운로드 → adb install -r → setup 자동 실행
+                   ?url=<APK URL>
+  GET /launch-app  앱 실행 (am start -n com.mns.mockgps/.MainActivity)
   GET /mock-gps    좌표 전송  ?lat=&lon=&bearing=&speed_kmh=&alt=&accuracy=
 """
 
@@ -28,7 +32,10 @@ import json
 import argparse
 import shutil
 import socket
+import tempfile
 import threading
+import urllib.request
+import os
 from urllib.parse import urlparse, parse_qs
 
 HTTP_PORT = 21234
@@ -99,6 +106,50 @@ def setup_forward():
 def setup_appops():
     """MnsMockGps 를 모의 위치 앱으로 지정 (appops)."""
     return adb_run(['shell', 'appops', 'set', APP_PACKAGE, 'android:mock_location', 'allow'])
+
+
+def is_app_installed():
+    """MnsMockGps 패키지 설치 여부."""
+    ok, out, _ = adb_run(['shell', 'pm', 'list', 'packages', APP_PACKAGE])
+    return ok and (APP_PACKAGE in out)
+
+
+def is_service_running():
+    """MnsMockGps 포그라운드 서비스 실행 여부."""
+    ok, out, _ = adb_run(['shell', 'dumpsys', 'activity', 'services', APP_PACKAGE])
+    return ok and ('MockGpsService' in out)
+
+
+def install_apk(apk_path):
+    """adb install -r <apk>."""
+    return adb_run(['install', '-r', apk_path], timeout=60)
+
+
+def launch_app():
+    """앱 메인 액티비티 실행."""
+    return adb_run(['shell', 'am', 'start', '-n', f'{APP_PACKAGE}/.MainActivity'])
+
+
+def download_apk(url, dest_path):
+    """주어진 URL 에서 APK 다운로드. (ok, error_msg)"""
+    try:
+        # localhost 만 허용 (자체 호스팅) — 외부 URL 보안 차단
+        # GitHub Pages 도 허용 (honor436.github.io)
+        parsed = urlparse(url)
+        host = parsed.hostname or ''
+        if host not in ('localhost', '127.0.0.1') and not host.endswith('github.io'):
+            return False, f'허용되지 않은 호스트: {host} (localhost 또는 github.io 만 가능)'
+        req = urllib.request.Request(url, headers={'User-Agent': 'adb-relay/1.0'})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            with open(dest_path, 'wb') as f:
+                while True:
+                    chunk = resp.read(64 * 1024)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+        return True, ''
+    except Exception as e:
+        return False, str(e)
 
 
 # --------------------------------------------------------------------------- #
@@ -202,6 +253,73 @@ class RelayHandler(http.server.BaseHTTPRequestHandler):
                 return
             devices = list_devices()
             self.send_json(200, {'ok': True, 'devices': devices, 'count': len(devices)})
+            return
+
+        # ---- App status: 설치/실행 여부 ----
+        if parsed.path == '/app-status':
+            if not ADB:
+                self.send_json(500, {'ok': False, 'error': 'adb를 찾을 수 없습니다.'})
+                return
+            installed = is_app_installed()
+            running = is_service_running() if installed else False
+            self.send_json(200, {
+                'ok': True,
+                'package': APP_PACKAGE,
+                'installed': installed,
+                'serviceRunning': running,
+            })
+            return
+
+        # ---- Install APK: 다운로드 → install -r → setup ----
+        if parsed.path == '/install-app':
+            if not ADB:
+                self.send_json(500, {'ok': False, 'error': 'adb를 찾을 수 없습니다.'})
+                return
+            apk_url = qs.get('url', [None])[0]
+            if not apk_url:
+                self.send_json(400, {'ok': False, 'error': 'url 파라미터 필요'})
+                return
+            # 임시 파일에 다운로드
+            tmpf = tempfile.NamedTemporaryFile(suffix='.apk', delete=False)
+            tmpf.close()
+            tmp_path = tmpf.name
+            try:
+                dl_ok, dl_err = download_apk(apk_url, tmp_path)
+                if not dl_ok:
+                    self.send_json(502, {'ok': False, 'error': f'APK 다운로드 실패: {dl_err}', 'url': apk_url})
+                    return
+                size = os.path.getsize(tmp_path)
+                inst_ok, inst_out, inst_err = install_apk(tmp_path)
+                if not inst_ok:
+                    self.send_json(500, {
+                        'ok': False,
+                        'error': f'adb install 실패: {inst_err or inst_out}',
+                        'downloadedSize': size,
+                    })
+                    return
+                # 설치 직후 setup (forward + appops)
+                fwd_ok, _, fwd_err = setup_forward()
+                ops_ok, _, ops_err = setup_appops()
+                self.send_json(200, {
+                    'ok': True,
+                    'installed': True,
+                    'downloadedSize': size,
+                    'installOutput': inst_out,
+                    'forward': {'ok': fwd_ok, 'stderr': fwd_err},
+                    'appops':  {'ok': ops_ok, 'stderr': ops_err},
+                })
+            finally:
+                try: os.unlink(tmp_path)
+                except Exception: pass
+            return
+
+        # ---- Launch app ----
+        if parsed.path == '/launch-app':
+            if not ADB:
+                self.send_json(500, {'ok': False, 'error': 'adb를 찾을 수 없습니다.'})
+                return
+            ok, out, err = launch_app()
+            self.send_json(200 if ok else 500, {'ok': ok, 'stdout': out, 'stderr': err})
             return
 
         # ---- Setup: adb forward + appops ----
