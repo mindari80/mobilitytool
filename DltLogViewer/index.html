@@ -1624,13 +1624,32 @@
           <button id="mg-app-launch"  class="mg-btn" style="display:none">▶ 앱 실행</button>
         </div>
       </div>
-      <div id="mg-relay-cmd-box" style="display:none;margin-top:8px;padding:8px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);border-radius:6px">
-        <div style="font-size:11px;color:#f87171;font-weight:700;margin-bottom:4px">⚠️ 릴레이 서버가 실행되지 않았습니다</div>
-        <div class="mg-hint" style="margin-bottom:6px">아래 명령을 터미널에 붙여넣어 실행하세요:</div>
+      <div id="mg-relay-cmd-box" style="display:none;margin-top:8px;padding:10px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);border-radius:6px">
+        <div style="font-size:11px;color:#f87171;font-weight:700;margin-bottom:6px">⚠️ 릴레이 서버가 실행되지 않았습니다</div>
+        <div class="mg-hint" style="margin-bottom:8px">
+          처음이라면 <b>자동 설치</b> 한 번이면 끝납니다 (Python3 + ADB 필요).<br>
+          이후엔 PC 부팅 시 릴레이가 자동으로 시작됩니다.
+        </div>
+        <div class="mg-btn-group" style="margin-bottom:8px">
+          <button id="mg-install-mac" class="mg-btn primary" style="font-size:11px"> macOS / Linux 자동 설치</button>
+          <button id="mg-install-win" class="mg-btn primary" style="font-size:11px;background:#0078d4;border-color:#0078d4">🪟 Windows 자동 설치</button>
+        </div>
+        <div class="mg-hint" style="margin-bottom:6px">또는 수동:</div>
         <div style="display:flex;gap:4px;align-items:stretch">
-          <code id="mg-relay-cmd" style="flex:1;font-size:10px;padding:6px 8px;background:#0f172a;border-radius:4px;color:#c084fc;word-break:break-all;border:1px solid #334155">python3 ~/path/to/DltLogViewer/adb-relay.py</code>
+          <code id="mg-relay-cmd" style="flex:1;font-size:10px;padding:6px 8px;background:#0f172a;border-radius:4px;color:#c084fc;word-break:break-all;border:1px solid #334155">python3 ~/.mockgps/adb-relay.py</code>
           <button id="mg-copy-cmd" class="mg-btn primary" style="white-space:nowrap">📋 복사</button>
         </div>
+      </div>
+
+      <!-- 자동 설치 명령 표시 다이얼로그 (인라인) -->
+      <div id="mg-install-dialog" style="display:none;margin-top:8px;padding:10px;background:rgba(56,189,248,0.08);border:1px solid rgba(56,189,248,0.3);border-radius:6px">
+        <div style="font-size:11px;color:var(--accent);font-weight:700;margin-bottom:4px" id="mg-install-title">설치 명령</div>
+        <div class="mg-hint" style="margin-bottom:6px">아래 명령을 <b>새 터미널</b>에 붙여넣고 실행하세요. 30초 안에 완료됩니다.</div>
+        <div style="display:flex;gap:4px;align-items:stretch">
+          <code id="mg-install-cmd" style="flex:1;font-size:10px;padding:6px 8px;background:#0f172a;border-radius:4px;color:#c084fc;word-break:break-all;border:1px solid #334155"></code>
+          <button id="mg-install-copy" class="mg-btn primary" style="white-space:nowrap">📋 복사</button>
+        </div>
+        <div class="mg-hint" style="margin-top:6px">완료 후 이 페이지 <b>새로고침</b> 또는 <b>새로고침</b> 버튼 클릭</div>
       </div>
       <div class="mg-hint" style="margin-top:6px" id="mg-setup-hint">
         릴레이 서버: <code>python3 adb-relay.py</code> (포트 21234)<br>
@@ -1989,14 +2008,13 @@ function mgBuildRelayCmd() {
 mgRelayCmd.textContent = mgBuildRelayCmd();
 
 mgCopyCmdBtn.addEventListener('click', async () => {
-  const cmd = mgRelayCmd.textContent.split('\n')[0];  // 첫 줄(주석 제외)
+  const cmd = mgRelayCmd.textContent.split('\n')[0];
   try {
     await navigator.clipboard.writeText(cmd);
     const orig = mgCopyCmdBtn.textContent;
     mgCopyCmdBtn.textContent = '✓ 복사됨';
     setTimeout(() => { mgCopyCmdBtn.textContent = orig; }, 1500);
   } catch (e) {
-    // fallback: select text
     const range = document.createRange();
     range.selectNodeContents(mgRelayCmd);
     const sel = window.getSelection();
@@ -2004,6 +2022,63 @@ mgCopyCmdBtn.addEventListener('click', async () => {
     alert('자동 복사 실패. 강조된 텍스트를 Cmd/Ctrl+C로 복사하세요.');
   }
 });
+
+// ---- 자동 설치 부트스트랩 ---- //
+const mgInstallMac    = document.getElementById('mg-install-mac');
+const mgInstallWin    = document.getElementById('mg-install-win');
+const mgInstallDialog = document.getElementById('mg-install-dialog');
+const mgInstallTitle  = document.getElementById('mg-install-title');
+const mgInstallCmd    = document.getElementById('mg-install-cmd');
+const mgInstallCopy   = document.getElementById('mg-install-copy');
+
+function mgScriptsBase() {
+  // 호스팅 위치 기반 scripts 디렉토리 URL
+  return new URL('scripts/', location.href).toString();
+}
+
+function mgShowInstallCmd(os) {
+  const base = mgScriptsBase();
+  let cmd, title;
+  if (os === 'mac') {
+    title = '🍎 macOS / Linux 자동 설치';
+    cmd = `curl -fsSL ${base}install.sh | bash`;
+  } else {
+    title = '🪟 Windows 자동 설치 (PowerShell)';
+    cmd = `iwr ${base}install.ps1 -UseBasicParsing | iex`;
+  }
+  mgInstallTitle.textContent = title;
+  mgInstallCmd.textContent = cmd;
+  mgInstallDialog.style.display = 'block';
+}
+
+mgInstallMac.addEventListener('click', () => mgShowInstallCmd('mac'));
+mgInstallWin.addEventListener('click', () => mgShowInstallCmd('win'));
+
+mgInstallCopy.addEventListener('click', async () => {
+  const cmd = mgInstallCmd.textContent;
+  try {
+    await navigator.clipboard.writeText(cmd);
+    const orig = mgInstallCopy.textContent;
+    mgInstallCopy.textContent = '✓ 복사됨';
+    setTimeout(() => { mgInstallCopy.textContent = orig; }, 1500);
+  } catch (e) {
+    const range = document.createRange();
+    range.selectNodeContents(mgInstallCmd);
+    const sel = window.getSelection();
+    sel.removeAllRanges(); sel.addRange(range);
+    alert('자동 복사 실패. 강조된 텍스트를 Cmd/Ctrl+C로 복사하세요.');
+  }
+});
+
+// OS 자동 감지 → 해당 버튼 강조
+(function highlightOsButton() {
+  const ua = navigator.userAgent.toLowerCase();
+  if (ua.includes('win')) {
+    mgInstallWin.style.boxShadow = '0 0 0 2px #93c5fd';
+  } else if (ua.includes('mac') || ua.includes('linux')) {
+    mgInstallMac.style.boxShadow = '0 0 0 2px #a78bfa';
+  }
+})();
 
 // ---- ADB 상태 새로고침 ---- //
 async function refreshAdbStatus() {

@@ -270,47 +270,65 @@ class RelayHandler(http.server.BaseHTTPRequestHandler):
             })
             return
 
-        # ---- Install APK: 다운로드 → install -r → setup ----
+        # ---- Install APK: 로컬 캐시 우선, 없으면 다운로드 → install -r → setup ----
         if parsed.path == '/install-app':
             if not ADB:
                 self.send_json(500, {'ok': False, 'error': 'adb를 찾을 수 없습니다.'})
                 return
             apk_url = qs.get('url', [None])[0]
-            if not apk_url:
-                self.send_json(400, {'ok': False, 'error': 'url 파라미터 필요'})
-                return
-            # 임시 파일에 다운로드
-            tmpf = tempfile.NamedTemporaryFile(suffix='.apk', delete=False)
-            tmpf.close()
-            tmp_path = tmpf.name
-            try:
+            tmp_path = None
+            apk_path = None
+            source = None
+            size = 0
+            # 1. 로컬 캐시 우선 (install.sh 가 다운로드해둔 위치)
+            local_cached = os.path.expanduser('~/.mockgps/MnsMockGps.apk')
+            if os.path.exists(local_cached):
+                apk_path = local_cached
+                source = f'local cache: {local_cached}'
+                size = os.path.getsize(apk_path)
+            elif apk_url:
+                # 2. URL 다운로드 폴백
+                tmpf = tempfile.NamedTemporaryFile(suffix='.apk', delete=False)
+                tmpf.close()
+                tmp_path = tmpf.name
                 dl_ok, dl_err = download_apk(apk_url, tmp_path)
                 if not dl_ok:
                     self.send_json(502, {'ok': False, 'error': f'APK 다운로드 실패: {dl_err}', 'url': apk_url})
+                    try: os.unlink(tmp_path)
+                    except Exception: pass
                     return
-                size = os.path.getsize(tmp_path)
-                inst_ok, inst_out, inst_err = install_apk(tmp_path)
+                apk_path = tmp_path
+                source = f'downloaded: {apk_url}'
+                size = os.path.getsize(apk_path)
+            else:
+                self.send_json(400, {'ok': False, 'error': 'url 파라미터 또는 ~/.mockgps/MnsMockGps.apk 필요'})
+                return
+            try:
+                inst_ok, inst_out, inst_err = install_apk(apk_path)
                 if not inst_ok:
                     self.send_json(500, {
                         'ok': False,
                         'error': f'adb install 실패: {inst_err or inst_out}',
-                        'downloadedSize': size,
+                        'source': source,
+                        'apkSize': size,
                     })
                     return
-                # 설치 직후 setup (forward + appops)
                 fwd_ok, _, fwd_err = setup_forward()
                 ops_ok, _, ops_err = setup_appops()
                 self.send_json(200, {
                     'ok': True,
                     'installed': True,
-                    'downloadedSize': size,
+                    'source': source,
+                    'apkSize': size,
+                    'downloadedSize': size,  # backward-compat
                     'installOutput': inst_out,
                     'forward': {'ok': fwd_ok, 'stderr': fwd_err},
                     'appops':  {'ok': ops_ok, 'stderr': ops_err},
                 })
             finally:
-                try: os.unlink(tmp_path)
-                except Exception: pass
+                if tmp_path:
+                    try: os.unlink(tmp_path)
+                    except Exception: pass
             return
 
         # ---- Launch app ----
