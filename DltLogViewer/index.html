@@ -1624,6 +1624,24 @@
   </div>
   <div class="mockgps-panel-body">
 
+    <!-- ★ 첫 사용자 히어로 카드 (릴레이 미실행 시에만 노출) -->
+    <div id="mg-first-hero" style="display:none">
+      <div style="background:linear-gradient(135deg,#a855f7 0%,#7c3aed 100%);border-radius:12px;padding:18px 16px;color:#fff;box-shadow:0 4px 14px rgba(168,85,247,0.3)">
+        <div style="font-size:13px;font-weight:700;opacity:0.85;margin-bottom:4px">처음이세요?</div>
+        <div style="font-size:18px;font-weight:800;line-height:1.3;margin-bottom:10px">PC에 자동 설치하면<br>모든 게 바로 동작합니다</div>
+        <div style="font-size:11px;opacity:0.9;line-height:1.5;margin-bottom:14px">
+          ✓ 릴레이 서버 자동 설치<br>
+          ✓ MnsMockGps APK 자동 설치<br>
+          ✓ PC 부팅 시 자동 시작 등록
+        </div>
+        <div class="mg-btn-group">
+          <button id="mg-hero-mac" class="mg-btn" style="background:#fff;color:#7c3aed;border:none;font-weight:800;font-size:13px;padding:10px 14px">🍎 macOS / Linux</button>
+          <button id="mg-hero-win" class="mg-btn" style="background:#fff;color:#1e293b;border:none;font-weight:800;font-size:13px;padding:10px 14px">🪟 Windows</button>
+        </div>
+        <div style="font-size:10px;opacity:0.7;margin-top:8px;text-align:center">Python3 + ADB 필요</div>
+      </div>
+    </div>
+
     <!-- ADB 연결 상태 -->
     <div class="mg-section">
       <div class="mg-section-title">🔌 ADB 연결 상태</div>
@@ -2106,6 +2124,12 @@ const mgInstallWin2 = document.getElementById('mg-install-win-2');
 mgInstallMac2.addEventListener('click', () => mgShowInstall('mac'));
 mgInstallWin2.addEventListener('click', () => mgShowInstall('win'));
 
+// 히어로 카드 버튼 — 같은 핸들러
+const mgHeroMac = document.getElementById('mg-hero-mac');
+const mgHeroWin = document.getElementById('mg-hero-win');
+mgHeroMac.addEventListener('click', () => mgShowInstall('mac'));
+mgHeroWin.addEventListener('click', () => mgShowInstall('win'));
+
 // ---- 설치 스크립트 파일 다운로드 (더블클릭 실행용) ---- //
 async function mgGenInstallFile(os) {
   if (os === 'mac') {
@@ -2165,13 +2189,15 @@ mgInstallDownload.addEventListener('click', async () => {
   }
 });
 
-// OS 자동 감지 → 해당 버튼 강조
+// OS 자동 감지 → 해당 버튼 강조 (모든 install 버튼)
 (function highlightOsButton() {
   const ua = navigator.userAgent.toLowerCase();
-  if (ua.includes('win')) {
-    mgInstallWin.style.boxShadow = '0 0 0 2px #93c5fd';
-  } else if (ua.includes('mac') || ua.includes('linux')) {
-    mgInstallMac.style.boxShadow = '0 0 0 2px #a78bfa';
+  const isWin = ua.includes('win');
+  const isMacLinux = ua.includes('mac') || ua.includes('linux');
+  if (isWin) {
+    [mgInstallWin, mgInstallWin2, mgHeroWin].forEach(b => b && (b.style.boxShadow = '0 0 0 3px #93c5fd, 0 4px 10px rgba(0,0,0,0.2)'));
+  } else if (isMacLinux) {
+    [mgInstallMac, mgInstallMac2, mgHeroMac].forEach(b => b && (b.style.boxShadow = '0 0 0 3px #fbbf24, 0 4px 10px rgba(0,0,0,0.2)'));
   }
 })();
 
@@ -2185,14 +2211,18 @@ function mgSetGated(locked) {
 mgSetGated(true);
 
 // ---- ADB 상태 새로고침 ---- //
+const mgFirstHero = document.getElementById('mg-first-hero');
+
 async function refreshAdbStatus() {
   mgAdbDot.className = 'mg-adb-dot';
   mgAdbText.textContent = '확인 중...';
   mgAppBox.style.display = 'none';
   let adbConnected = false;
+  let relayReachable = false;
   try {
     const res = await fetch(`${MG_RELAY}/devices`, { signal: AbortSignal.timeout(4000) });
     const data = await res.json();
+    relayReachable = true;
     if (data.ok && data.devices && data.devices.length > 0) {
       mgAdbDot.className = 'mg-adb-dot connected';
       mgAdbText.textContent = `연결됨: ${data.devices.join(', ')}`;
@@ -2207,6 +2237,8 @@ async function refreshAdbStatus() {
     mgAdbText.textContent = '릴레이 서버 응답 없음 (adb-relay.py 실행 필요)';
     mgRelayCmdBox.style.display = 'block';
   }
+  // 히어로 카드: 릴레이 미실행 시에만 노출 (첫 사용자가 가장 먼저 보도록)
+  mgFirstHero.style.display = relayReachable ? 'none' : 'block';
   // ADB 연결 시 다른 메뉴 잠금 해제 + 앱 상태 체크
   mgSetGated(!adbConnected);
   if (adbConnected) {
