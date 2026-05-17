@@ -1630,14 +1630,9 @@
           처음이라면 <b>자동 설치</b> 한 번이면 끝납니다 (Python3 + ADB 필요).<br>
           이후엔 PC 부팅 시 릴레이가 자동으로 시작됩니다.
         </div>
-        <div class="mg-btn-group" style="margin-bottom:8px">
+        <div class="mg-btn-group">
           <button id="mg-install-mac" class="mg-btn primary" style="font-size:11px"> macOS / Linux 자동 설치</button>
           <button id="mg-install-win" class="mg-btn primary" style="font-size:11px;background:#0078d4;border-color:#0078d4">🪟 Windows 자동 설치</button>
-        </div>
-        <div class="mg-hint" style="margin-bottom:6px">또는 수동:</div>
-        <div style="display:flex;gap:4px;align-items:stretch">
-          <code id="mg-relay-cmd" style="flex:1;font-size:10px;padding:6px 8px;background:#0f172a;border-radius:4px;color:#c084fc;word-break:break-all;border:1px solid #334155">python3 ~/.mockgps/adb-relay.py</code>
-          <button id="mg-copy-cmd" class="mg-btn primary" style="white-space:nowrap">📋 복사</button>
         </div>
       </div>
 
@@ -1991,37 +1986,8 @@ function mgBearingDeg(a, b) {
   return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
 }
 
-// ---- 릴레이 실행 명령 (페이지가 호스팅된 위치 기반) ---- //
+// ---- 릴레이 미실행 안내 박스 토글 (자동 설치 버튼만 노출) ---- //
 const mgRelayCmdBox = document.getElementById('mg-relay-cmd-box');
-const mgRelayCmd    = document.getElementById('mg-relay-cmd');
-const mgCopyCmdBtn  = document.getElementById('mg-copy-cmd');
-function mgBuildRelayCmd() {
-  // 페이지 위치에서 adb-relay.py 경로 유추 (.../DltLogViewer/index.html → .../DltLogViewer/adb-relay.py)
-  // 로컬(localhost)이면 file 경로 추정, GitHub Pages면 일반 가이드
-  const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-  if (isLocal) {
-    return 'python3 DltLogViewer/adb-relay.py';
-  }
-  // GitHub Pages 등 원격에서 접속한 경우 — 저장소 클론 가정
-  return 'python3 ~/honor436.github.io/DltLogViewer/adb-relay.py\n# 또는 저장소 경로/DltLogViewer/adb-relay.py';
-}
-mgRelayCmd.textContent = mgBuildRelayCmd();
-
-mgCopyCmdBtn.addEventListener('click', async () => {
-  const cmd = mgRelayCmd.textContent.split('\n')[0];
-  try {
-    await navigator.clipboard.writeText(cmd);
-    const orig = mgCopyCmdBtn.textContent;
-    mgCopyCmdBtn.textContent = '✓ 복사됨';
-    setTimeout(() => { mgCopyCmdBtn.textContent = orig; }, 1500);
-  } catch (e) {
-    const range = document.createRange();
-    range.selectNodeContents(mgRelayCmd);
-    const sel = window.getSelection();
-    sel.removeAllRanges(); sel.addRange(range);
-    alert('자동 복사 실패. 강조된 텍스트를 Cmd/Ctrl+C로 복사하세요.');
-  }
-});
 
 // ---- 자동 설치 부트스트랩 ---- //
 const mgInstallMac    = document.getElementById('mg-install-mac');

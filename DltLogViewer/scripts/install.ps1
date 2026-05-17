@@ -1,22 +1,22 @@
-# DLT Log Viewer Mock GPS Relay 자동 설치 스크립트 (Windows PowerShell)
-# 사용법:
+# DLT Log Viewer Mock GPS Relay auto-installer (Windows PowerShell)
+# Usage:
 #   iwr https://honor436.github.io/DltLogViewer/scripts/install.ps1 -UseBasicParsing | iex
 
-$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = "Stop"
 
-$BaseUrl = if ($env:MOCKGPS_BASE_URL) { $env:MOCKGPS_BASE_URL } else { 'https://honor436.github.io/DltLogViewer' }
-$Dest    = Join-Path $env:USERPROFILE '.mockgps'
-$TaskName = 'MnsMockGpsRelay'
+$BaseUrl  = if ($env:MOCKGPS_BASE_URL) { $env:MOCKGPS_BASE_URL } else { "https://honor436.github.io/DltLogViewer" }
+$Dest     = Join-Path $env:USERPROFILE ".mockgps"
+$TaskName = "MnsMockGpsRelay"
 
-function Step($msg)  { Write-Host ""; Write-Host "▸ $msg" -ForegroundColor Cyan }
-function Ok($msg)    { Write-Host "  ✓ $msg" -ForegroundColor Green }
-function Warn($msg)  { Write-Host "  ⚠ $msg" -ForegroundColor Yellow }
-function Fail($msg)  { Write-Host "  ✗ $msg" -ForegroundColor Red; exit 1 }
+function Step($m) { Write-Host ""; Write-Host "[ $m ]" -ForegroundColor Cyan }
+function Ok($m)   { Write-Host "  OK   $m" -ForegroundColor Green }
+function Warn($m) { Write-Host "  WARN $m" -ForegroundColor Yellow }
+function Fail($m) { Write-Host "  ERR  $m" -ForegroundColor Red; exit 1 }
 
-# ---------------- 1. Python 확인 ----------------
-Step 'Python 확인'
+# ---- 1. Python ----
+Step "Python"
 $python = $null
-foreach ($cmd in @('python', 'python3', 'py')) {
+foreach ($cmd in @("python", "python3", "py")) {
     if (Get-Command $cmd -ErrorAction SilentlyContinue) {
         $python = (Get-Command $cmd).Source
         $ver = & $cmd --version 2>&1
@@ -26,96 +26,92 @@ foreach ($cmd in @('python', 'python3', 'py')) {
 }
 if (-not $python) {
     if (Get-Command winget -ErrorAction SilentlyContinue) {
-        Warn 'Python 미설치 → winget 으로 설치 시도'
+        Warn "python not found, installing via winget"
         winget install -e --id Python.Python.3.12 --silent
         $python = (Get-Command python).Source
     } else {
-        Fail 'Python 이 필요합니다. https://www.python.org/downloads/ 에서 설치 후 다시 시도하세요.'
+        Fail "Python required. https://www.python.org/downloads/"
     }
 }
 
-# ---------------- 2. ADB 확인 ----------------
-Step 'ADB 확인'
-$adb = $null
+# ---- 2. ADB ----
+Step "ADB"
 if (Get-Command adb -ErrorAction SilentlyContinue) {
-    $adb = (Get-Command adb).Source
-    Ok "found: $adb"
+    Ok "found: $((Get-Command adb).Source)"
 } else {
-    $candidate = Join-Path $env:LOCALAPPDATA 'Android\Sdk\platform-tools\adb.exe'
+    $candidate = Join-Path $env:LOCALAPPDATA "Android\Sdk\platform-tools\adb.exe"
     if (Test-Path $candidate) {
         Ok "found: $candidate"
     } else {
-        Warn 'ADB 가 PATH 에 없습니다.'
-        Warn 'Android Studio 또는 Platform Tools 를 설치하세요:'
-        Warn '  https://developer.android.com/tools/releases/platform-tools'
-        Warn '(릴레이는 설치하되, adb 가 없으면 동작하지 않습니다)'
+        Warn "adb not in PATH"
+        Warn "Install Android Platform Tools:"
+        Warn "  https://developer.android.com/tools/releases/platform-tools"
+        Warn "(relay installed but will not work until adb is available)"
     }
 }
 
-# ---------------- 3. 디렉토리 생성 ----------------
-Step "$Dest 생성"
+# ---- 3. dest dir ----
+Step "Create $Dest"
 New-Item -ItemType Directory -Path $Dest -Force | Out-Null
 Ok $Dest
 
-# ---------------- 4. 파일 다운로드 ----------------
-Step "릴레이 + APK 다운로드 ($BaseUrl)"
-Invoke-WebRequest -Uri "$BaseUrl/adb-relay.py"          -OutFile (Join-Path $Dest 'adb-relay.py')   -UseBasicParsing
-Ok 'adb-relay.py'
-Invoke-WebRequest -Uri "$BaseUrl/assets/MnsMockGps.apk" -OutFile (Join-Path $Dest 'MnsMockGps.apk') -UseBasicParsing
-$apkSize = (Get-Item (Join-Path $Dest 'MnsMockGps.apk')).Length
+# ---- 4. download ----
+Step "Download relay + APK from $BaseUrl"
+Invoke-WebRequest -Uri "$BaseUrl/adb-relay.py"          -OutFile (Join-Path $Dest "adb-relay.py")   -UseBasicParsing
+Ok "adb-relay.py"
+Invoke-WebRequest -Uri "$BaseUrl/assets/MnsMockGps.apk" -OutFile (Join-Path $Dest "MnsMockGps.apk") -UseBasicParsing
+$apkSize = (Get-Item (Join-Path $Dest "MnsMockGps.apk")).Length
 Ok ("MnsMockGps.apk ({0:N1} MB)" -f ($apkSize / 1MB))
 
-# ---------------- 5. 기존 프로세스 중지 ----------------
-Step '기존 릴레이 종료'
-$running = Get-Process | Where-Object { $_.CommandLine -like '*adb-relay.py*' } -ErrorAction SilentlyContinue
+# ---- 5. stop existing ----
+Step "Stop existing relay"
+$running = Get-Process | Where-Object { $_.CommandLine -like "*adb-relay.py*" } -ErrorAction SilentlyContinue
 if ($running) {
     $running | Stop-Process -Force
     Start-Sleep -Milliseconds 500
-    Ok '기존 프로세스 종료'
+    Ok "stopped previous instance"
 } else {
-    Ok '실행 중 인스턴스 없음'
+    Ok "no running instance"
 }
 
-# ---------------- 6. 작업 스케줄러 자동 시작 등록 ----------------
-Step '작업 스케줄러 등록 (로그인 시 자동 시작)'
-$action  = New-ScheduledTaskAction  -Execute $python -Argument "`"$(Join-Path $Dest 'adb-relay.py')`"" -WorkingDirectory $Dest
+# ---- 6. scheduled task ----
+Step "Register scheduled task (run at logon)"
+$relayPath = Join-Path $Dest "adb-relay.py"
+$action  = New-ScheduledTaskAction  -Execute $python -Argument "`"$relayPath`"" -WorkingDirectory $Dest
 $trigger = New-ScheduledTaskTrigger -AtLogOn
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit 0
 $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
 
-# 기존 작업 삭제
 Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
-
-Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Description 'DLT Log Viewer Mock GPS Relay' | Out-Null
+Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Description "DLT Log Viewer Mock GPS Relay" | Out-Null
 Ok "Task: $TaskName"
 
-# 지금 한 번 실행
 Start-ScheduledTask -TaskName $TaskName
-Ok '지금 실행됨'
+Ok "started"
 
-# ---------------- 7. 동작 확인 ----------------
-Step '릴레이 헬스체크 (포트 21234)'
+# ---- 7. health check ----
+Step "Health check (port 21234)"
 Start-Sleep -Seconds 2
 try {
-    $resp = Invoke-WebRequest -Uri 'http://localhost:21234/ping' -UseBasicParsing -TimeoutSec 4
+    $resp = Invoke-WebRequest -Uri "http://localhost:21234/ping" -UseBasicParsing -TimeoutSec 4
     Ok $resp.Content
 } catch {
-    Warn "헬스체크 실패. 수동 실행: $python `"$(Join-Path $Dest 'adb-relay.py')`""
+    Warn "health check failed. run manually: $python `"$relayPath`""
 }
 
-# ---------------- 완료 ----------------
-Write-Host ''
-Write-Host '════════════════════════════════════════════════════' -ForegroundColor Green
-Write-Host '  ✅ Mock GPS 릴레이 설치 완료' -ForegroundColor Green
-Write-Host '════════════════════════════════════════════════════' -ForegroundColor Green
-Write-Host ''
-Write-Host "   설치 위치  : $Dest"
-Write-Host "   릴레이 URL : http://localhost:21234"
-Write-Host ''
-Write-Host '   이제 웹페이지로 돌아가 새로고침하세요:'
-Write-Host '   👉 https://honor436.github.io/DltLogViewer/' -ForegroundColor Cyan
-Write-Host ''
-Write-Host '   제거하려면:'
-Write-Host "     Unregister-ScheduledTask -TaskName $TaskName -Confirm:`$false"
-Write-Host "     Remove-Item -Recurse -Force $Dest"
-Write-Host ''
+# ---- done ----
+Write-Host ""
+Write-Host "====================================================" -ForegroundColor Green
+Write-Host "  Mock GPS Relay installation complete" -ForegroundColor Green
+Write-Host "====================================================" -ForegroundColor Green
+Write-Host ""
+Write-Host "  Installed at : $Dest"
+Write-Host "  Relay URL    : http://localhost:21234"
+Write-Host ""
+Write-Host "  Reload the web page now:"
+Write-Host "  https://honor436.github.io/DltLogViewer/" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "  Uninstall:"
+Write-Host "    Unregister-ScheduledTask -TaskName $TaskName -Confirm:`$false"
+Write-Host "    Remove-Item -Recurse -Force $Dest"
+Write-Host ""

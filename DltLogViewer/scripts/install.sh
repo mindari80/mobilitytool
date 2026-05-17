@@ -1,95 +1,84 @@
 #!/usr/bin/env bash
-# DLT Log Viewer Mock GPS Relay 자동 설치 스크립트 (macOS / Linux)
-# 사용법:
+# DLT Log Viewer Mock GPS Relay auto-installer (macOS / Linux)
+# Usage:
 #   curl -fsSL https://honor436.github.io/DltLogViewer/scripts/install.sh | bash
 set -euo pipefail
 
 BASE_URL="${MOCKGPS_BASE_URL:-https://honor436.github.io/DltLogViewer}"
 DEST="$HOME/.mockgps"
-PYTHON=""
 LABEL="com.mns.mockgps-relay"
+PYTHON=""
 
-c_red()    { printf '\033[31m%s\033[0m' "$1"; }
-c_green()  { printf '\033[32m%s\033[0m' "$1"; }
-c_yellow() { printf '\033[33m%s\033[0m' "$1"; }
-c_blue()   { printf '\033[34m%s\033[0m' "$1"; }
+step() { printf "\n[ %s ]\n" "$1"; }
+ok()   { printf "  OK   %s\n"  "$1"; }
+warn() { printf "  WARN %s\n"  "$1"; }
+fail() { printf "  ERR  %s\n"  "$1"; exit 1; }
 
-step()  { echo ""; echo "$(c_blue '▸') $*"; }
-ok()    { echo "  $(c_green '✓') $*"; }
-warn()  { echo "  $(c_yellow '⚠') $*"; }
-fail()  { echo "  $(c_red   '✗') $*"; exit 1; }
-
-# ---------------- 0. OS 감지 ----------------
+# ---------------- 0. OS ----------------
 case "$(uname -s)" in
   Darwin*) OS=macos ;;
   Linux*)  OS=linux ;;
-  *)       fail "지원되지 않는 OS: $(uname -s) (macOS / Linux 만 지원)" ;;
+  *)       fail "Unsupported OS: $(uname -s) (macOS / Linux only)" ;;
 esac
-step "OS: $(c_green "$OS")"
+step "OS: $OS"
 
-# ---------------- 1. python3 확인 ----------------
-step "Python3 확인"
+# ---------------- 1. python3 ----------------
+step "Python3"
 if command -v python3 >/dev/null 2>&1; then
   PYTHON="$(command -v python3)"
   ok "found: $PYTHON ($($PYTHON --version 2>&1))"
 else
-  if [[ "$OS" == "macos" ]]; then
-    if command -v brew >/dev/null 2>&1; then
-      warn "Python3 미설치 → Homebrew 로 설치 시도"
-      brew install python3 || fail "brew install python3 실패"
-      PYTHON="$(command -v python3)"
-    else
-      fail "Python3 가 필요합니다. https://www.python.org/downloads/ 에서 설치 후 다시 시도하세요."
-    fi
+  if [ "$OS" = "macos" ] && command -v brew >/dev/null 2>&1; then
+    warn "python3 not found, installing via Homebrew"
+    brew install python3 || fail "brew install python3 failed"
+    PYTHON="$(command -v python3)"
   else
-    fail "Python3 가 필요합니다. (apt: sudo apt install python3)"
+    fail "Python3 required. Install: https://www.python.org/downloads/"
   fi
 fi
 
-# ---------------- 2. adb 확인 ----------------
-step "ADB 확인"
+# ---------------- 2. adb ----------------
+step "ADB"
 if command -v adb >/dev/null 2>&1; then
   ok "found: $(command -v adb)"
-elif [[ -x "$HOME/Library/Android/sdk/platform-tools/adb" ]]; then
+elif [ -x "$HOME/Library/Android/sdk/platform-tools/adb" ]; then
   ok "found: $HOME/Library/Android/sdk/platform-tools/adb"
-elif [[ -x "$HOME/Android/Sdk/platform-tools/adb" ]]; then
+elif [ -x "$HOME/Android/Sdk/platform-tools/adb" ]; then
   ok "found: $HOME/Android/Sdk/platform-tools/adb"
 else
-  warn "ADB 가 PATH 에 없습니다."
-  warn "Android Studio 설치 후 platform-tools 경로를 PATH 에 추가하거나,"
+  warn "adb not in PATH"
   warn "  macOS: brew install --cask android-platform-tools"
   warn "  Linux: sudo apt install android-tools-adb"
-  warn "(릴레이는 설치하되, adb 가 없으면 동작하지 않습니다)"
+  warn "(relay installed but will not work until adb is available)"
 fi
 
-# ---------------- 3. 디렉토리 생성 ----------------
-step "$DEST 생성"
+# ---------------- 3. dest dir ----------------
+step "Create $DEST"
 mkdir -p "$DEST"
 ok "$DEST"
 
-# ---------------- 4. 파일 다운로드 ----------------
-step "릴레이 + APK 다운로드 ($BASE_URL)"
-curl -fsSL "$BASE_URL/adb-relay.py"          -o "$DEST/adb-relay.py"          && ok "adb-relay.py"
-curl -fsSL "$BASE_URL/assets/MnsMockGps.apk" -o "$DEST/MnsMockGps.apk"        && ok "MnsMockGps.apk ($(du -h "$DEST/MnsMockGps.apk" | cut -f1))"
-
+# ---------------- 4. download ----------------
+step "Download relay + APK from $BASE_URL"
+curl -fsSL "$BASE_URL/adb-relay.py"          -o "$DEST/adb-relay.py"   && ok "adb-relay.py"
+curl -fsSL "$BASE_URL/assets/MnsMockGps.apk" -o "$DEST/MnsMockGps.apk" && ok "MnsMockGps.apk ($(du -h "$DEST/MnsMockGps.apk" | cut -f1))"
 chmod +x "$DEST/adb-relay.py"
 
-# ---------------- 5. 기존 실행 프로세스 중지 ----------------
-step "기존 릴레이 종료"
+# ---------------- 5. stop existing ----------------
+step "Stop existing relay"
 if pgrep -f "adb-relay.py" >/dev/null 2>&1; then
   pkill -f "adb-relay.py" || true
   sleep 0.5
-  ok "기존 프로세스 종료"
+  ok "stopped previous instance"
 else
-  ok "실행 중 인스턴스 없음"
+  ok "no running instance"
 fi
 
-# ---------------- 6. 자동 시작 등록 ----------------
-if [[ "$OS" == "macos" ]]; then
-  step "launchd 자동 시작 등록"
+# ---------------- 6. auto-start ----------------
+if [ "$OS" = "macos" ]; then
+  step "Register launchd"
   PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
   mkdir -p "$HOME/Library/LaunchAgents"
-  cat > "$PLIST" <<EOF
+  cat > "$PLIST" <<PLIST_EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -107,16 +96,16 @@ if [[ "$OS" == "macos" ]]; then
   <key>WorkingDirectory</key><string>$DEST</string>
 </dict>
 </plist>
-EOF
+PLIST_EOF
   launchctl unload "$PLIST" 2>/dev/null || true
   launchctl load   "$PLIST"
   ok "$PLIST"
-  ok "PC 부팅 시 자동 시작됩니다."
-elif [[ "$OS" == "linux" ]]; then
-  step "systemd --user 등록"
+  ok "auto-starts at login"
+elif [ "$OS" = "linux" ]; then
+  step "Register systemd --user"
   UNIT_DIR="$HOME/.config/systemd/user"
   mkdir -p "$UNIT_DIR"
-  cat > "$UNIT_DIR/mockgps-relay.service" <<EOF
+  cat > "$UNIT_DIR/mockgps-relay.service" <<UNIT_EOF
 [Unit]
 Description=DLT Log Viewer Mock GPS Relay
 After=network.target
@@ -128,39 +117,35 @@ WorkingDirectory=$DEST
 
 [Install]
 WantedBy=default.target
-EOF
+UNIT_EOF
   systemctl --user daemon-reload || true
-  systemctl --user enable --now mockgps-relay.service || warn "systemd --user 활성화 실패. 직접 실행해주세요: $PYTHON $DEST/adb-relay.py"
+  systemctl --user enable --now mockgps-relay.service || warn "systemd --user activation failed. run manually: $PYTHON $DEST/adb-relay.py"
   ok "systemctl --user enable --now mockgps-relay.service"
 fi
 
-# ---------------- 7. 동작 확인 ----------------
-step "릴레이 헬스체크 (포트 21234)"
+# ---------------- 7. health check ----------------
+step "Health check (port 21234)"
 sleep 1.5
 if curl -fsS http://localhost:21234/ping >/dev/null 2>&1; then
   ok "$(curl -fsS http://localhost:21234/ping)"
 else
-  warn "헬스체크 실패. 수동 실행: $PYTHON $DEST/adb-relay.py"
+  warn "health check failed. run manually: $PYTHON $DEST/adb-relay.py"
 fi
 
-# ---------------- 완료 ----------------
-echo ""
-c_green "════════════════════════════════════════════════════"; echo ""
-c_green "  ✅ Mock GPS 릴레이 설치 완료"; echo ""
-c_green "════════════════════════════════════════════════════"; echo ""
-echo ""
-echo "   설치 위치  : $DEST"
-echo "   릴레이 URL : http://localhost:21234"
-echo ""
-echo "   이제 웹페이지로 돌아가 새로고침하세요:"
-echo "   👉 https://honor436.github.io/DltLogViewer/"
-echo ""
-echo "   제거하려면:"
-if [[ "$OS" == "macos" ]]; then
-  echo "     launchctl unload ~/Library/LaunchAgents/$LABEL.plist"
-  echo "     rm -rf $DEST ~/Library/LaunchAgents/$LABEL.plist"
+# ---------------- done ----------------
+printf "\n====================================================\n"
+printf "  Mock GPS Relay installation complete\n"
+printf "====================================================\n\n"
+printf "  Installed at : %s\n" "$DEST"
+printf "  Relay URL    : http://localhost:21234\n\n"
+printf "  Reload the web page now:\n"
+printf "  https://honor436.github.io/DltLogViewer/\n\n"
+printf "  Uninstall:\n"
+if [ "$OS" = "macos" ]; then
+  printf "    launchctl unload ~/Library/LaunchAgents/%s.plist\n" "$LABEL"
+  printf "    rm -rf %s ~/Library/LaunchAgents/%s.plist\n" "$DEST" "$LABEL"
 else
-  echo "     systemctl --user disable --now mockgps-relay.service"
-  echo "     rm -rf $DEST ~/.config/systemd/user/mockgps-relay.service"
+  printf "    systemctl --user disable --now mockgps-relay.service\n"
+  printf "    rm -rf %s ~/.config/systemd/user/mockgps-relay.service\n" "$DEST"
 fi
-echo ""
+printf "\n"
