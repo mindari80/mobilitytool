@@ -858,6 +858,28 @@
       border: 1px solid rgba(168,85,247,0.2);
       border-radius: 8px;
       padding: 10px 12px;
+      position: relative;
+      transition: opacity 0.2s;
+    }
+    /* ADB 미연결 시 ADB 외 섹션은 비활성화 (회색 + 점선 + 클릭 차단) */
+    .mg-section.mg-gated.mg-locked {
+      opacity: 0.4;
+      pointer-events: none;
+      border-style: dashed;
+      border-color: rgba(148,163,184,0.4);
+      background: rgba(148,163,184,0.04);
+    }
+    .mg-section.mg-gated.mg-locked::after {
+      content: '🔒 ADB 연결 후 사용 가능';
+      position: absolute;
+      top: 8px;
+      right: 10px;
+      font-size: 9px;
+      color: var(--muted);
+      font-weight: 600;
+      background: rgba(15,23,42,0.7);
+      padding: 2px 6px;
+      border-radius: 4px;
     }
     .mg-section-title {
       font-size: 12px;
@@ -1669,7 +1691,7 @@
     </div>
 
     <!-- 설정: 속도 / Location.accuracy -->
-    <div class="mg-section">
+    <div class="mg-section mg-gated">
       <div class="mg-section-title">⚙️ 전송 설정</div>
       <div class="mg-row">
         <label>속도</label>
@@ -1707,7 +1729,7 @@
     </div>
 
     <!-- 소스 모드 선택 -->
-    <div class="mg-section">
+    <div class="mg-section mg-gated">
       <div class="mg-section-title">📍 데이터 소스</div>
       <div class="mg-mode-tabs">
         <button class="mg-mode-tab active" data-mode="draw">✏️ 드로잉</button>
@@ -1759,7 +1781,7 @@
     </div>
 
     <!-- 전송 제어 -->
-    <div class="mg-section">
+    <div class="mg-section mg-gated">
       <div class="mg-section-title">▶ Mock GPS 전송</div>
       <div class="mg-btn-group">
         <button id="mg-play" class="mg-btn primary" disabled>▶ 시작</button>
@@ -1793,6 +1815,7 @@
   integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.js"></script>
 <script src="https://unpkg.com/shpjs@4.0.4/dist/shp.js"></script>
+<script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
 <script type="module" src="js/shp-app.js?v=20260413"></script>
 
 <!-- Traffic incident overlay -->
@@ -2066,31 +2089,62 @@ mgInstallMac.addEventListener('click', () => mgShowInstall('mac'));
 mgInstallWin.addEventListener('click', () => mgShowInstall('win'));
 
 // ---- 설치 스크립트 파일 다운로드 (더블클릭 실행용) ---- //
-mgInstallDownload.addEventListener('click', () => {
-  const os = mgCurrentOs;
-  let content, filename, mime, hint;
+async function mgGenInstallFile(os) {
   if (os === 'mac') {
-    content = '#!/usr/bin/env bash\n' + mgBuildCmd('mac') + '\n';
-    filename = 'mockgps-install.command';
-    mime = 'text/x-shellscript';
-    hint = '다운로드 폴더에서 <b>mockgps-install.command</b> 우클릭 → "열기" 클릭 → 보안 경고 시 "열기"<br>' +
-           '(첫 실행 후엔 더블클릭만으로 실행됨. 실행 안되면 터미널에서 <code>chmod +x ~/Downloads/mockgps-install.command</code>)';
+    // .command 파일을 .zip 으로 패키지: 압축해제 시 실행권한(0755) 복원됨
+    const scriptContent = '#!/usr/bin/env bash\n' + mgBuildCmd('mac') + '\n';
+    const zip = new JSZip();
+    zip.file('mockgps-install.command', scriptContent, {
+      unixPermissions: 0o755,
+      date: new Date(),
+    });
+    const blob = await zip.generateAsync({
+      type: 'blob',
+      platform: 'UNIX',           // exec 비트가 zip 메타데이터에 기록되도록
+      compression: 'DEFLATE',
+    });
+    return {
+      blob, filename: 'mockgps-install.zip',
+      hint: '<b>1.</b> 다운로드된 <b>mockgps-install.zip</b> 더블클릭으로 압축 해제<br>' +
+            '<b>2.</b> 생긴 <b>mockgps-install.command</b> 우클릭 → "열기" → 보안 경고에서 "열기"<br>' +
+            '<span style="color:var(--muted)">(첫 실행만 우클릭 필요. 이후엔 더블클릭으로 됨)</span>',
+    };
   } else {
-    content = '@echo off\r\npowershell -NoProfile -Command "' + mgBuildCmd('win').replace(/"/g, '\\"') + '"\r\npause\r\n';
-    filename = 'mockgps-install.bat';
-    mime = 'application/bat';
-    hint = '다운로드 폴더에서 <b>mockgps-install.bat</b> 더블클릭 → SmartScreen 시 "추가 정보" → "실행"';
+    // .bat — 그대로 다운로드, SmartScreen 우회 가능
+    const winCmd = mgBuildCmd('win').replace(/"/g, '\\"');
+    const content = '@echo off\r\npowershell -NoProfile -ExecutionPolicy Bypass -Command "' + winCmd + '"\r\npause\r\n';
+    const blob = new Blob([content], { type: 'application/bat' });
+    return {
+      blob, filename: 'mockgps-install.bat',
+      hint: '<b>1.</b> 다운로드된 <b>mockgps-install.bat</b> 더블클릭<br>' +
+            '<b>2.</b> SmartScreen 경고 시 "추가 정보" → "실행" 클릭',
+    };
   }
-  const blob = new Blob([content], { type: mime });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  mgInstallDownloadHint.style.display = 'block';
-  mgInstallDownloadHint.innerHTML = hint;
+}
+
+mgInstallDownload.addEventListener('click', async () => {
+  const os = mgCurrentOs;
+  mgInstallDownload.disabled = true;
+  const orig = mgInstallDownload.textContent;
+  mgInstallDownload.textContent = '⏳ 패키지 생성 중...';
+  try {
+    const { blob, filename, hint } = await mgGenInstallFile(os);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    mgInstallDownloadHint.style.display = 'block';
+    mgInstallDownloadHint.innerHTML = hint;
+  } catch (e) {
+    mgInstallDownloadHint.style.display = 'block';
+    mgInstallDownloadHint.innerHTML = '<span style="color:#f87171">패키지 생성 실패: ' + (e.message || e) + '</span>';
+  } finally {
+    mgInstallDownload.disabled = false;
+    mgInstallDownload.textContent = orig;
+  }
 });
 
 // OS 자동 감지 → 해당 버튼 강조
@@ -2102,6 +2156,15 @@ mgInstallDownload.addEventListener('click', () => {
     mgInstallMac.style.boxShadow = '0 0 0 2px #a78bfa';
   }
 })();
+
+// ---- 게이트 토글: ADB 연결 시 모든 mg-gated 섹션 활성화 ---- //
+function mgSetGated(locked) {
+  document.querySelectorAll('.mg-section.mg-gated').forEach(el => {
+    el.classList.toggle('mg-locked', locked);
+  });
+}
+// 초기: 잠금
+mgSetGated(true);
 
 // ---- ADB 상태 새로고침 ---- //
 async function refreshAdbStatus() {
@@ -2126,7 +2189,8 @@ async function refreshAdbStatus() {
     mgAdbText.textContent = '릴레이 서버 응답 없음 (adb-relay.py 실행 필요)';
     mgRelayCmdBox.style.display = 'block';
   }
-  // ADB 연결 시에만 앱 상태도 체크
+  // ADB 연결 시 다른 메뉴 잠금 해제 + 앱 상태 체크
+  mgSetGated(!adbConnected);
   if (adbConnected) {
     mgAppBox.style.display = 'block';
     await refreshAppStatus();
