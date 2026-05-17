@@ -1636,15 +1636,31 @@
         </div>
       </div>
 
-      <!-- 자동 설치 명령 표시 다이얼로그 (인라인) -->
+      <!-- 자동 설치 안내 다이얼로그 -->
       <div id="mg-install-dialog" style="display:none;margin-top:8px;padding:10px;background:rgba(56,189,248,0.08);border:1px solid rgba(56,189,248,0.3);border-radius:6px">
-        <div style="font-size:11px;color:var(--accent);font-weight:700;margin-bottom:4px" id="mg-install-title">설치 명령</div>
-        <div class="mg-hint" style="margin-bottom:6px">아래 명령을 <b>새 터미널</b>에 붙여넣고 실행하세요. 30초 안에 완료됩니다.</div>
-        <div style="display:flex;gap:4px;align-items:stretch">
-          <code id="mg-install-cmd" style="flex:1;font-size:10px;padding:6px 8px;background:#0f172a;border-radius:4px;color:#c084fc;word-break:break-all;border:1px solid #334155"></code>
-          <button id="mg-install-copy" class="mg-btn primary" style="white-space:nowrap">📋 복사</button>
+        <div style="font-size:11px;color:var(--accent);font-weight:700;margin-bottom:6px" id="mg-install-title">설치</div>
+
+        <!-- Step 1: 복사됨 안내 -->
+        <div id="mg-install-step1" style="background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.3);padding:8px;border-radius:6px;margin-bottom:8px">
+          <div style="font-size:11px;color:#4ade80;font-weight:700">✓ 명령이 클립보드에 복사되었습니다</div>
         </div>
-        <div class="mg-hint" style="margin-top:6px">완료 후 이 페이지 <b>새로고침</b> 또는 <b>새로고침</b> 버튼 클릭</div>
+
+        <!-- Step 2: 터미널 안내 -->
+        <div class="mg-hint" id="mg-install-steps" style="line-height:1.7;font-size:11px">
+        </div>
+
+        <!-- 다운로드 대안 -->
+        <div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(56,189,248,0.2)">
+          <div class="mg-hint" style="margin-bottom:6px">또는 더블클릭으로 실행:</div>
+          <button id="mg-install-download" class="mg-btn">📥 설치 스크립트 다운로드</button>
+          <div id="mg-install-download-hint" class="mg-hint" style="margin-top:4px;display:none"></div>
+        </div>
+
+        <!-- 명령 보기 (펼침) -->
+        <details style="margin-top:8px">
+          <summary class="mg-hint" style="cursor:pointer">실행될 명령 보기</summary>
+          <code id="mg-install-cmd" style="display:block;margin-top:4px;font-size:10px;padding:6px 8px;background:#0f172a;border-radius:4px;color:#c084fc;word-break:break-all;border:1px solid #334155"></code>
+        </details>
       </div>
       <div class="mg-hint" style="margin-top:6px" id="mg-setup-hint">
         릴레이 서버: <code>python3 adb-relay.py</code> (포트 21234)<br>
@@ -1990,50 +2006,91 @@ function mgBearingDeg(a, b) {
 const mgRelayCmdBox = document.getElementById('mg-relay-cmd-box');
 
 // ---- 자동 설치 부트스트랩 ---- //
-const mgInstallMac    = document.getElementById('mg-install-mac');
-const mgInstallWin    = document.getElementById('mg-install-win');
-const mgInstallDialog = document.getElementById('mg-install-dialog');
-const mgInstallTitle  = document.getElementById('mg-install-title');
-const mgInstallCmd    = document.getElementById('mg-install-cmd');
-const mgInstallCopy   = document.getElementById('mg-install-copy');
+const mgInstallMac      = document.getElementById('mg-install-mac');
+const mgInstallWin      = document.getElementById('mg-install-win');
+const mgInstallDialog   = document.getElementById('mg-install-dialog');
+const mgInstallTitle    = document.getElementById('mg-install-title');
+const mgInstallCmd      = document.getElementById('mg-install-cmd');
+const mgInstallSteps    = document.getElementById('mg-install-steps');
+const mgInstallDownload = document.getElementById('mg-install-download');
+const mgInstallDownloadHint = document.getElementById('mg-install-download-hint');
+
+let mgCurrentOs = 'mac';   // mac | win
 
 function mgScriptsBase() {
-  // 호스팅 위치 기반 scripts 디렉토리 URL
   return new URL('scripts/', location.href).toString();
 }
 
-function mgShowInstallCmd(os) {
+function mgBuildCmd(os) {
   const base = mgScriptsBase();
-  let cmd, title;
-  if (os === 'mac') {
-    title = '🍎 macOS / Linux 자동 설치';
-    cmd = `curl -fsSL ${base}install.sh | bash`;
-  } else {
-    title = '🪟 Windows 자동 설치 (PowerShell)';
-    cmd = `iwr ${base}install.ps1 -UseBasicParsing | iex`;
-  }
-  mgInstallTitle.textContent = title;
-  mgInstallCmd.textContent = cmd;
-  mgInstallDialog.style.display = 'block';
+  return os === 'mac'
+    ? `curl -fsSL ${base}install.sh | bash`
+    : `iwr ${base}install.ps1 -UseBasicParsing | iex`;
 }
 
-mgInstallMac.addEventListener('click', () => mgShowInstallCmd('mac'));
-mgInstallWin.addEventListener('click', () => mgShowInstallCmd('win'));
+function mgStepsHtml(os) {
+  if (os === 'mac') {
+    return `<b>1.</b> 터미널 열기 (<kbd style="background:#1e293b;padding:1px 5px;border-radius:3px;font-size:10px;color:#c084fc">⌘+Space</kbd> → "터미널" 검색 → Enter)<br>
+            <b>2.</b> 터미널에서 <kbd style="background:#1e293b;padding:1px 5px;border-radius:3px;font-size:10px;color:#c084fc">⌘+V</kbd> → <kbd style="background:#1e293b;padding:1px 5px;border-radius:3px;font-size:10px;color:#c084fc">Enter</kbd><br>
+            <b>3.</b> 30초 안에 설치 완료 → 이 페이지 새로고침`;
+  }
+  return `<b>1.</b> PowerShell 열기 (<kbd style="background:#1e293b;padding:1px 5px;border-radius:3px;font-size:10px;color:#c084fc">⊞+X</kbd> → "Windows PowerShell")<br>
+          <b>2.</b> <kbd style="background:#1e293b;padding:1px 5px;border-radius:3px;font-size:10px;color:#c084fc">Ctrl+V</kbd> → <kbd style="background:#1e293b;padding:1px 5px;border-radius:3px;font-size:10px;color:#c084fc">Enter</kbd><br>
+          <b>3.</b> 30초 안에 설치 완료 → 이 페이지 새로고침`;
+}
 
-mgInstallCopy.addEventListener('click', async () => {
-  const cmd = mgInstallCmd.textContent;
+async function mgShowInstall(os) {
+  mgCurrentOs = os;
+  const cmd = mgBuildCmd(os);
+  // 1) 즉시 클립보드 복사
+  let copied = false;
   try {
     await navigator.clipboard.writeText(cmd);
-    const orig = mgInstallCopy.textContent;
-    mgInstallCopy.textContent = '✓ 복사됨';
-    setTimeout(() => { mgInstallCopy.textContent = orig; }, 1500);
-  } catch (e) {
-    const range = document.createRange();
-    range.selectNodeContents(mgInstallCmd);
-    const sel = window.getSelection();
-    sel.removeAllRanges(); sel.addRange(range);
-    alert('자동 복사 실패. 강조된 텍스트를 Cmd/Ctrl+C로 복사하세요.');
+    copied = true;
+  } catch (_) { /* fallback below */ }
+  // 2) 다이얼로그 채우기
+  mgInstallTitle.textContent = os === 'mac' ? '🍎 macOS / Linux 자동 설치' : '🪟 Windows 자동 설치';
+  mgInstallCmd.textContent = cmd;
+  mgInstallSteps.innerHTML = mgStepsHtml(os);
+  document.getElementById('mg-install-step1').style.display = copied ? 'block' : 'none';
+  mgInstallDialog.style.display = 'block';
+  mgInstallDownloadHint.style.display = 'none';
+  // 복사 실패 시 명령 details 자동 펼침
+  if (!copied) {
+    const det = mgInstallCmd.closest('details');
+    if (det) det.open = true;
   }
+}
+
+mgInstallMac.addEventListener('click', () => mgShowInstall('mac'));
+mgInstallWin.addEventListener('click', () => mgShowInstall('win'));
+
+// ---- 설치 스크립트 파일 다운로드 (더블클릭 실행용) ---- //
+mgInstallDownload.addEventListener('click', () => {
+  const os = mgCurrentOs;
+  let content, filename, mime, hint;
+  if (os === 'mac') {
+    content = '#!/usr/bin/env bash\n' + mgBuildCmd('mac') + '\n';
+    filename = 'mockgps-install.command';
+    mime = 'text/x-shellscript';
+    hint = '다운로드 폴더에서 <b>mockgps-install.command</b> 우클릭 → "열기" 클릭 → 보안 경고 시 "열기"<br>' +
+           '(첫 실행 후엔 더블클릭만으로 실행됨. 실행 안되면 터미널에서 <code>chmod +x ~/Downloads/mockgps-install.command</code>)';
+  } else {
+    content = '@echo off\r\npowershell -NoProfile -Command "' + mgBuildCmd('win').replace(/"/g, '\\"') + '"\r\npause\r\n';
+    filename = 'mockgps-install.bat';
+    mime = 'application/bat';
+    hint = '다운로드 폴더에서 <b>mockgps-install.bat</b> 더블클릭 → SmartScreen 시 "추가 정보" → "실행"';
+  }
+  const blob = new Blob([content], { type: mime });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  mgInstallDownloadHint.style.display = 'block';
+  mgInstallDownloadHint.innerHTML = hint;
 });
 
 // OS 자동 감지 → 해당 버튼 강조
