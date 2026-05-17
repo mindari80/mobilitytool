@@ -1635,6 +1635,18 @@
         <button id="mg-adb-refresh" class="mg-btn">새로고침</button>
         <button id="mg-adb-setup" class="mg-btn primary">ADB 설정</button>
       </div>
+      <!-- PC 부트스트랩 설치 (항상 노출) -->
+      <details style="margin-top:8px" id="mg-pc-install-details">
+        <summary class="mg-hint" style="cursor:pointer;font-weight:600;color:#c084fc">💻 PC 부트스트랩 설치 (처음이거나 다른 PC에 설치 시)</summary>
+        <div class="mg-hint" style="margin:6px 0 8px;line-height:1.6">
+          한 번 설치하면 PC 부팅 시 릴레이가 자동 시작됩니다.<br>
+          (Python3 + ADB 필요)
+        </div>
+        <div class="mg-btn-group">
+          <button id="mg-install-mac-2" class="mg-btn primary" style="font-size:11px"> macOS / Linux</button>
+          <button id="mg-install-win-2" class="mg-btn primary" style="font-size:11px;background:#0078d4;border-color:#0078d4">🪟 Windows</button>
+        </div>
+      </details>
       <!-- 앱 설치/실행 상태 박스 (ADB 연결 시에만 노출) -->
       <div id="mg-app-status-box" style="display:none;margin-top:8px;padding:8px 10px;background:rgba(168,85,247,0.06);border:1px solid rgba(168,85,247,0.2);border-radius:6px">
         <div style="display:flex;align-items:center;gap:6px;font-size:11px">
@@ -2087,6 +2099,12 @@ async function mgShowInstall(os) {
 
 mgInstallMac.addEventListener('click', () => mgShowInstall('mac'));
 mgInstallWin.addEventListener('click', () => mgShowInstall('win'));
+
+// ADB 섹션 안의 PC 설치 details — 같은 핸들러 재사용
+const mgInstallMac2 = document.getElementById('mg-install-mac-2');
+const mgInstallWin2 = document.getElementById('mg-install-win-2');
+mgInstallMac2.addEventListener('click', () => mgShowInstall('mac'));
+mgInstallWin2.addEventListener('click', () => mgShowInstall('win'));
 
 // ---- 설치 스크립트 파일 다운로드 (더블클릭 실행용) ---- //
 async function mgGenInstallFile(os) {
