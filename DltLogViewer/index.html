@@ -1840,10 +1840,8 @@
         <div class="mg-row" style="margin-top:6px">
           <label>GPS 소스</label>
           <select id="mg-dlt-source" class="mg-select">
-            <option value="gps">GPS (원본)</option>
-            <option value="dr_gps">DR_GPS</option>
-            <option value="mm_gps">MM GPS Pos</option>
-            <option value="mm_match" selected>MM Match Pos</option>
+            <option value="gps_dr" selected>GPS / DR_GPS (Location 콜백)</option>
+            <option value="nmea">NMEA $GPRMC</option>
           </select>
         </div>
         <div class="mg-btn-group" style="margin-top:8px">
@@ -2802,11 +2800,9 @@ function mgUpdateDltStatus() {
     mgDltStatus.textContent = "DLT 분석 결과가 없습니다. 먼저 'DLT GPS Log' 탭에서 분석하세요.";
     return;
   }
-  const g = a.locationLogs.filter(p => p.sourceType === 'gps').length;
-  const d = a.locationLogs.filter(p => p.sourceType === 'dr_gps').length;
-  const mg = a.mmLogs.filter(p => p.sourceType === 'mm_gps').length;
-  const mm = a.mmLogs.filter(p => p.sourceType === 'mm_match').length;
-  mgDltStatus.innerHTML = `분석 결과: GPS <b>${g}</b> · DR_GPS <b>${d}</b> · MM_GPS <b>${mg}</b> · MM_Match <b>${mm}</b>`;
+  const gpsDr = a.locationLogs.filter(p => p.sourceType === 'gps' || p.sourceType === 'dr_gps').length;
+  const nmea  = a.locationLogs.filter(p => p.sourceType === 'nmea').length;
+  mgDltStatus.innerHTML = `분석 결과: GPS/DR_GPS <b>${gpsDr}</b> · NMEA <b>${nmea}</b>`;
 }
 mgDltLoadBtn.addEventListener('click', () => {
   const a = window.__dltAnalysis;
@@ -2815,12 +2811,14 @@ mgDltLoadBtn.addEventListener('click', () => {
     mgSendStatus.textContent = "DLT 분석 결과가 없습니다. 'DLT GPS Log' 탭에서 분석하세요.";
     return;
   }
-  const src = mgDltSource.value;   // 'gps' | 'dr_gps' | 'mm_gps' | 'mm_match'
+  const src = mgDltSource.value;   // 'gps_dr' | 'nmea'
   let raw;
-  if (src === 'gps' || src === 'dr_gps') {
-    raw = a.locationLogs.filter(p => p.sourceType === src);
+  if (src === 'gps_dr') {
+    raw = a.locationLogs.filter(p => p.sourceType === 'gps' || p.sourceType === 'dr_gps');
+  } else if (src === 'nmea') {
+    raw = a.locationLogs.filter(p => p.sourceType === 'nmea');
   } else {
-    raw = a.mmLogs.filter(p => p.sourceType === src);
+    raw = [];
   }
   if (raw.length < 1) {
     mgSendStatus.style.color = '#f87171';

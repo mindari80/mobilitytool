@@ -39,12 +39,14 @@ const TTS_SCRIPT_RE = /TmapAutoExternalVoicePlayer:requestTTS\[(\d+)\]:requestTT
 const GPS_INTERESTING_STRINGS = [
   '#onLocationChanged',
   '[MM_RESULT]',
+  'Nmea : $G',                // NMEA RMC 라인
 ];
 
 const ROUTE_TTS_INTERESTING_STRINGS = [
   '#onLocationChanged',   // needed for recentLocation (route anchor)
   '#RpLog[',
   'requestTTS',
+  'Nmea : $G',
 ];
 
 const ALL_INTERESTING_STRINGS = [
@@ -52,6 +54,7 @@ const ALL_INTERESTING_STRINGS = [
   '[MM_RESULT]',
   '#RpLog[',
   'requestTTS',
+  'Nmea : $G',
 ];
 
 // ---- Helpers ------------------------------------------------------------- //
@@ -557,6 +560,7 @@ export async function extractLogs(files, progressCallback = null, mode = 'all') 
       const hasMm = doGps && (line.includes('[MM_RESULT]') || currentMmResult != null);
       const hasRoute = doRoute && line.includes('#RpLog[');
       const hasTts = doTts && line.includes('requestTTS');
+      const hasNmea = doGps && line.includes('Nmea : $G') && line.includes('RMC,');
 
       // ---- Location ---- //
       if (hasLocation) {
@@ -573,6 +577,29 @@ export async function extractLogs(files, progressCallback = null, mode = 'all') 
             sequence++;
           }
           recentLocation = { lon, lat, bearing, timestamp, sourceType };
+        }
+      }
+
+      // ---- NMEA RMC ---- //
+      if (hasNmea) {
+        // 'NAVD[820]:Nmea : $GPRMC,...' 에서 $G... 부분만 잘라서 파서로
+        const sIdx = line.indexOf('$G');
+        const nmeaLine = sIdx >= 0 ? line.slice(sIdx) : line;
+        const nm = parseNmeaRmc(nmeaLine);
+        if (nm) {
+          // DLT 라인 타임스탬프를 우선 사용 (NMEA 의 UTC 와 분리)
+          locationLogs.push({
+            lon: nm.lon, lat: nm.lat,
+            bearing: nm.bearing != null ? nm.bearing : 0,
+            timestamp,
+            et: '',
+            sourceType: 'nmea',
+            sequence,
+            speed: nm.speed,            // m/s
+            nmeaUtc: nm.timestamp,      // NMEA 내부 UTC (별도 보존)
+          });
+          sequence++;
+          recentLocation = { lon: nm.lon, lat: nm.lat, bearing: nm.bearing || 0, timestamp, sourceType: 'nmea' };
         }
       }
 
@@ -844,6 +871,38 @@ export function formatTimestamp(ts) {
 
 export function preparePayloadForDisplayExport(payload) {
   return preparePayloadForDisplay(payload);
+}
+
+/**
+ * NMEA RMC 문장 파싱.
+ * 예: $GPRMC,231804.412,A,3731.4598530,N,12641.0831974,E,6.1057,280.7618,280426,,,D,S*12
+ *
+ * @returns {{lat,lon,bearing,speed,timestamp}|null}
+ *   speed 단위: m/s (knots 에서 변환)
+ *   timestamp: UTC Date
+ */
+export function parseNmeaRmc(line) {
+  if (!line) return null;
+  // $G[N|P]RMC,hhmmss[.fff],status,ddmm.mmmm,N|S,dddmm.mmmm,E|W,speedKn,bearing,DDMMYY,...
+  const re = /\$G[NPL]RMC,(\d{2})(\d{2})(\d{2})(?:\.(\d{1,3}))?,([AV]),(\d{2})(\d+(?:\.\d+)?),([NS]),(\d{3})(\d+(?:\.\d+)?),([EW]),([\d.]*),([\d.]*),(\d{2})(\d{2})(\d{2})/;
+  const m = re.exec(line);
+  if (!m) return null;
+  const [, hh, mi, ss, ms, status, latDeg, latMin, ns, lonDeg, lonMin, ew, speedKn, bearing, dd, mm_, yy] = m;
+  if (status !== 'A') return null; // V = invalid fix
+  const lat = (Number(latDeg) + Number(latMin) / 60) * (ns === 'S' ? -1 : 1);
+  const lon = (Number(lonDeg) + Number(lonMin) / 60) * (ew === 'W' ? -1 : 1);
+  const year = 2000 + Number(yy);
+  const date = new Date(Date.UTC(
+    year, Number(mm_) - 1, Number(dd),
+    Number(hh), Number(mi), Number(ss),
+    Number(ms ? (ms + '00').slice(0, 3) : 0)
+  ));
+  return {
+    lat, lon,
+    bearing: bearing !== '' ? Number(bearing) : null,
+    speed:   speedKn  !== '' ? Number(speedKn) * 0.514444 : null,   // knots → m/s
+    timestamp: date,
+  };
 }
 
 /**
