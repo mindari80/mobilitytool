@@ -1023,6 +1023,42 @@
       flex-shrink: 0;
     }
     .right-panel-header h2 { font-size: 14px; font-weight: 700; color: var(--text); margin: 0; }
+    /* ---- 도움말 아이콘 공통 ---- */
+    .help-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      background: rgba(56,189,248,0.15);
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 800;
+      font-family: serif;
+      text-decoration: none;
+      cursor: pointer;
+      margin-left: 6px;
+      vertical-align: middle;
+      transition: all 0.15s;
+      border: 1px solid rgba(56,189,248,0.3);
+    }
+    .help-icon:hover {
+      background: var(--accent);
+      color: #fff;
+      transform: scale(1.1);
+    }
+    .help-icon.purple {
+      background: rgba(168,85,247,0.15);
+      color: #c084fc;
+      border-color: rgba(168,85,247,0.3);
+    }
+    .help-icon.purple:hover { background: #a855f7; color:#fff; }
+    .help-icon.green {
+      background: rgba(34,197,94,0.15);
+      color: #4ade80;
+      border-color: rgba(34,197,94,0.3);
+    }
+    .help-icon.green:hover { background: #22c55e; color:#fff; }
 
     /* DLT Analysis result panel */
     #dlt-right-panel .dlt-panel-body {
@@ -1304,7 +1340,7 @@
 
   <!-- Coordinate search -->
   <div id="coord-panel">
-    <h2>좌표 검색</h2>
+    <h2>좌표 검색<a href="help.html#coord" target="_blank" class="help-icon" title="좌표 검색 도움말 열기" rel="noopener">?</a></h2>
     <details class="coord-help">
       <summary>사용 방법</summary>
       <ul>
@@ -1335,7 +1371,7 @@
 
   <!-- Ruler / distance measurement -->
   <div id="ruler-panel">
-    <h2>줄자</h2>
+    <h2>줄자<a href="help.html#ruler" target="_blank" class="help-icon" title="줄자 도움말 열기" rel="noopener">?</a></h2>
     <div class="ruler-actions">
       <button id="ruler-toggle-btn">줄자 모드 OFF</button>
       <button id="ruler-clear-btn">지우기</button>
@@ -1351,7 +1387,7 @@
 
   <!-- SHP Link/Node Layer -->
   <div id="shp-panel">
-    <h2>링크/노드 레이어</h2>
+    <h2>링크/노드 레이어<a href="help.html#shp" target="_blank" class="help-icon" title="SHP 링크/노드 도움말 열기" rel="noopener">?</a></h2>
     <div class="shp-actions">
       <button class="shp-file-btn" id="shp-folder-btn">SHP 폴더 선택</button>
       <button id="shp-clear-btn">지우기</button>
@@ -1383,7 +1419,7 @@
 
   <!-- Traffic incidents (TMAP top-open) -->
   <div id="traffic-panel">
-    <h2>RTM</h2>
+    <h2>RTM<a href="help.html#traffic" target="_blank" class="help-icon" title="교통정보(RTM) 도움말 열기" rel="noopener">?</a></h2>
     <div class="traffic-actions">
       <button id="traffic-load-btn" class="traffic-main-btn">현재 영역 불러오기</button>
       <button id="traffic-load-all-btn" class="traffic-main-btn">전국 영역 불러오기</button>
@@ -1426,7 +1462,7 @@
 <!-- ======== TVAS Right Panel ======== -->
 <div id="tvas-right-panel" class="right-slide-panel">
   <div class="right-panel-header" style="border-left:3px solid #3b82f6">
-    <h2>경로 요청</h2>
+    <h2>경로 요청<a href="help.html#tvas" target="_blank" class="help-icon" title="경로 요청(TVAS) 도움말 열기" rel="noopener">?</a></h2>
   </div>
   <div id="tvas-panel-body">
     <!-- CORS Unblock 확장 프로그램 설치 안내 -->
@@ -1526,7 +1562,7 @@
 <!-- ======== DLT Analysis Right Panel ======== -->
 <div id="dlt-right-panel" class="right-slide-panel">
   <div class="right-panel-header" style="border-left:3px solid #22c55e">
-    <h2>DLT GPS Log</h2>
+    <h2>DLT GPS Log<a href="help.html#dlt" target="_blank" class="help-icon green" title="DLT GPS Log 도움말 열기" rel="noopener">?</a></h2>
   </div>
   <div class="dlt-panel-body">
     <!-- File drop zone -->
@@ -1620,7 +1656,7 @@
 <!-- ======== Mock GPS Right Panel ======== -->
 <div id="mockgps-right-panel" class="right-slide-panel">
   <div class="right-panel-header" style="border-left:3px solid #a855f7">
-    <h2>🛰️ Mock GPS</h2>
+    <h2>🛰️ Mock GPS<a href="help.html#mockgps" target="_blank" class="help-icon purple" title="Mock GPS 도움말 열기" rel="noopener">?</a></h2>
   </div>
   <div class="mockgps-panel-body">
 
@@ -1760,7 +1796,7 @@
 
     <!-- 소스 모드 선택 -->
     <div class="mg-section mg-gated">
-      <div class="mg-section-title">📍 데이터 소스</div>
+      <div class="mg-section-title">📍 데이터 소스<a href="help.html#mockgps" target="_blank" class="help-icon purple" title="3가지 모드 도움말 열기" rel="noopener">?</a></div>
       <div class="mg-mode-tabs">
         <button class="mg-mode-tab active" data-mode="draw">✏️ 드로잉</button>
         <button class="mg-mode-tab" data-mode="tvas">🛣️ TVAS</button>
@@ -1771,7 +1807,7 @@
       <div class="mg-mode-content" data-mode="draw">
         <div class="mg-toggle" style="margin-top:8px;padding:6px 0;border-bottom:1px solid rgba(168,85,247,0.15)">
           <div>
-            <div style="font-size:12px;font-weight:700;color:var(--text)">지도 드로잉 모드</div>
+            <div style="font-size:12px;font-weight:700;color:var(--text)">지도 드로잉 모드<a href="help.html#mockgps" target="_blank" class="help-icon purple" title="드로잉 모드 도움말" rel="noopener">?</a></div>
             <div class="mg-hint" id="mg-mode-hint">OFF — 켜면 지도를 드래그해 주행 궤적을 그립니다.</div>
           </div>
           <div id="mg-switch" class="mg-switch"></div>
@@ -1784,7 +1820,10 @@
 
       <!-- TVAS 모드 -->
       <div class="mg-mode-content" data-mode="tvas" style="display:none">
-        <div class="mg-hint" style="margin:8px 0 6px">경로 요청 결과(TVAS)의 보간점(VX)을 따라 이동합니다. 속도 슬라이더로 보간 간격을 조정합니다.</div>
+        <div style="margin:8px 0 6px;font-size:11px;color:var(--muted)">
+          🛣️ TVAS 모드<a href="help.html#mockgps" target="_blank" class="help-icon purple" title="TVAS 모드 도움말" rel="noopener">?</a>
+        </div>
+        <div class="mg-hint" style="margin-bottom:6px">경로 요청 결과(TVAS)의 보간점(VX)을 따라 이동합니다. 속도 슬라이더로 보간 간격을 조정합니다.</div>
         <div class="mg-stat-line" id="mg-tvas-status">경로 요청 결과가 없습니다. 먼저 '경로 요청' 탭에서 요청하세요.</div>
         <div class="mg-btn-group" style="margin-top:8px">
           <button id="mg-tvas-load" class="mg-btn primary">현재 TVAS 경로 불러오기</button>
@@ -1793,7 +1832,10 @@
 
       <!-- DLT 모드 -->
       <div class="mg-mode-content" data-mode="dlt" style="display:none">
-        <div class="mg-hint" style="margin:8px 0 6px">DLT 로그에서 추출된 위치 데이터를 <b>원본 타임스탬프 그대로(1x 실시간)</b> 재현합니다. 정확도·위성수는 슬라이더 값으로 전송됩니다.</div>
+        <div style="margin:8px 0 6px;font-size:11px;color:var(--muted)">
+          📋 DLT 모드<a href="help.html#mockgps" target="_blank" class="help-icon purple" title="DLT 모드 도움말" rel="noopener">?</a>
+        </div>
+        <div class="mg-hint" style="margin-bottom:6px">DLT 로그에서 추출된 위치 데이터를 <b>원본 타임스탬프 그대로(1x 실시간)</b> 재현합니다. 정확도·위성수는 슬라이더 값으로 전송됩니다.</div>
         <div class="mg-stat-line" id="mg-dlt-status">DLT 분석 결과가 없습니다. 먼저 'DLT GPS Log' 탭에서 분석하세요.</div>
         <div class="mg-row" style="margin-top:6px">
           <label>GPS 소스</label>
